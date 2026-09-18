@@ -80,7 +80,7 @@ fun DownloadSettingsDialogContent(onClose: () -> Unit) {
 
 fun ComponentActivity.shouldShowDownloadSettingsDialog(): Boolean {
     val storageManager = get<StorageManager>()
-    return storageManager.getStorageLocation() == null
+    return !storageManager.isStorageLocationAccessible()
 }
 
 suspend fun ComponentActivity.showDownloadSettingsDialog() {

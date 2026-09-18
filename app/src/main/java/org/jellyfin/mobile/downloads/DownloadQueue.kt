@@ -207,15 +207,27 @@ class DownloadQueue(
     ): DownloadJobDto {
         downloadDao.update(download.copy(status = DownloadStatus.CONVERTING))
 
-        var current = job
-        while (true) {
-            when (current.status.lowercase()) {
-                "ready" -> return current
-                "failed", "cancelled" -> error(current.error ?: "Conversion ${current.status}")
-            }
+        val notification = downloadNotificationManager.convertFile(
+            download.id,
+            download.getDisplayName(context).orEmpty(),
+        )
+        notification.notifyConverting()
 
-            delay(CONVERSION_POLL_INTERVAL_MS)
-            current = downloadJobClient.getJob(api, download.item.id, current.id)
+        var current = job
+        try {
+            while (true) {
+                when (current.status.lowercase()) {
+                    "ready" -> return current
+                    "failed", "cancelled" -> error(current.error ?: "Conversion ${current.status}")
+                }
+
+                delay(CONVERSION_POLL_INTERVAL_MS)
+                current = downloadJobClient.getJob(api, download.item.id, current.id)
+                notification.onProgress(current.progress)
+            }
+        } finally {
+            // Remove the conversion notification; the download progress notification takes over.
+            notification.cancel()
         }
     }
 

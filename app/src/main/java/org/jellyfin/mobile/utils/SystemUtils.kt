@@ -21,9 +21,9 @@ import org.jellyfin.mobile.BuildConfig
 import org.jellyfin.mobile.MainActivity
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.app.AppPreferences
+import org.jellyfin.mobile.app.StorageManager
 import org.jellyfin.mobile.downloads.DownloadManager
 import org.jellyfin.mobile.settings.ExternalPlayerPackage
-import org.jellyfin.mobile.ui.utils.shouldShowDownloadSettingsDialog
 import org.jellyfin.mobile.ui.utils.showDownloadQualityDialog
 import org.jellyfin.mobile.ui.utils.showDownloadSettingsDialog
 import org.jellyfin.mobile.webapp.WebViewFragment
@@ -59,30 +59,19 @@ fun WebViewFragment.requestNoBatteryOptimizations(rootView: CoordinatorLayout) {
 suspend fun MainActivity.requestDownload(itemIds: Collection<UUID>) {
     if (itemIds.isEmpty()) return
 
-    val appPreferences: AppPreferences = get()
+    val storageManager: StorageManager = get()
     val downloadManager: DownloadManager = get()
 
-    // Show dialog to choose download location for first download
-    if (shouldShowDownloadSettingsDialog()) {
+    // App private storage is always available. Only ask the user for a folder when the
+    // (legacy) external storage location is selected but not accessible yet.
+    if (!storageManager.isStorageLocationAccessible()) {
         showDownloadSettingsDialog()
+        if (!storageManager.isStorageLocationAccessible()) return
     }
 
-    // If no storage location is set the request for choosing a download folder
-    // so we'll cancel the download too
-    if (appPreferences.storageLocation == null) return
+    // Notification permission is optional; downloads still work without it.
+    awaitPermission(Manifest.permission.POST_NOTIFICATIONS)
 
-    // Request permissions to send notifications about download progress
-    suspendCancellableCoroutine { continuation ->
-        requestPermission("android.permission.POST_NOTIFICATIONS") { permissionsMap ->
-            if (permissionsMap[Manifest.permission.POST_NOTIFICATIONS] == PackageManager.PERMISSION_GRANTED) {
-                continuation.resume(true)
-            } else {
-                continuation.cancel(null)
-            }
-        }
-    }
-
-    // Add actual download
     val server = mainViewModel.serverState.value.server ?: return
     val user = mainViewModel.userState.value.user ?: return
 
@@ -90,6 +79,17 @@ suspend fun MainActivity.requestDownload(itemIds: Collection<UUID>) {
     val quality = showDownloadQualityDialog() ?: return
 
     downloadManager.enqueueItems(server, user, itemIds, quality)
+}
+
+/**
+ * Requests a permission and suspends until the user answered, regardless of the outcome.
+ */
+private suspend fun Activity.awaitPermission(permission: String) {
+    suspendCancellableCoroutine { continuation ->
+        requestPermission(permission) {
+            if (continuation.isActive) continuation.resume(Unit)
+        }
+    }
 }
 
 fun Activity.isAutoRotateOn() = Settings.System.getInt(contentResolver, ACCELEROMETER_ROTATION, 0) == 1
