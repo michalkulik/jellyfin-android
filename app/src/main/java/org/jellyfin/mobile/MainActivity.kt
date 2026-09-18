@@ -23,6 +23,7 @@ import androidx.lifecycle.withStarted
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.jellyfin.mobile.events.ActivityEventHandler
+import org.jellyfin.mobile.downloads.DownloadsFragment
 import org.jellyfin.mobile.player.cast.Chromecast
 import org.jellyfin.mobile.player.cast.IChromecast
 import org.jellyfin.mobile.player.ui.PlayerFragment
@@ -33,6 +34,7 @@ import org.jellyfin.mobile.utils.BluetoothPermissionHelper
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.mobile.utils.PermissionRequestHelper
 import org.jellyfin.mobile.utils.SmartOrientationListener
+import org.jellyfin.mobile.utils.extensions.addFragment
 import org.jellyfin.mobile.utils.extensions.replaceFragment
 import org.jellyfin.mobile.utils.isWebViewSupported
 import org.jellyfin.mobile.webapp.RemotePlayerService
@@ -41,6 +43,7 @@ import org.koin.android.ext.android.get
 import org.koin.android.ext.android.inject
 import org.koin.androidx.fragment.android.setupKoinFragmentFactory
 import org.koin.androidx.viewmodel.ext.android.viewModel
+import timber.log.Timber
 
 class MainActivity : AppCompatActivity() {
     private val activityEventHandler: ActivityEventHandler = get()
@@ -62,6 +65,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val orientationListener: OrientationEventListener by lazy { SmartOrientationListener(this) }
+
+    /**
+     * Set when the app was opened from a download notification; the downloads screen is shown as
+     * soon as the webapp fragment is in place.
+     */
+    private var pendingOpenDownloads = false
 
     /**
      * Passes back press events onto the currently visible [Fragment] if it implements the [BackPressInterceptor] interface.
@@ -144,11 +153,25 @@ class MainActivity : AppCompatActivity() {
 
         // Setup Chromecast
         chromecast.initializePlugin(this)
+
+        handleIntent(intent)
+    }
+
+    companion object {
+        /**
+         * Intent that brings the app to the front with the downloads screen open.
+         */
+        fun openDownloadsIntent(context: android.content.Context): Intent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(Constants.EXTRA_OPEN_DOWNLOADS, true)
+        }
     }
 
     override fun onStart() {
         super.onStart()
         orientationListener.enable()
+        openDownloadsIfPending()
     }
 
     private fun handleServerState(state: ServerState) {
@@ -171,6 +194,11 @@ class MainActivity : AppCompatActivity() {
                             },
                         )
                     }
+
+                    // The transaction is asynchronous, so make sure it is applied before looking
+                    // for the fragment container below.
+                    executePendingTransactions()
+                    openDownloadsIfPending()
                 }
             }
         }
@@ -203,6 +231,44 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         orientationListener.disable()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    /**
+     * Remembers that the downloads screen should be opened. The screen is opened once the webapp
+     * fragment exists, so it does not end up below the webapp when the app was started cold.
+     */
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(Constants.EXTRA_OPEN_DOWNLOADS, false) != true) return
+
+        intent.removeExtra(Constants.EXTRA_OPEN_DOWNLOADS)
+        pendingOpenDownloads = true
+        openDownloadsIfPending()
+    }
+
+    private fun openDownloadsIfPending() {
+        if (!pendingOpenDownloads) return
+
+        val container = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        Timber.d("openDownloadsIfPending: container=%s", container?.javaClass?.simpleName)
+
+        // Don't stack multiple downloads screens when the notification is tapped repeatedly.
+        if (supportFragmentManager.fragments.any { it is DownloadsFragment && it.isVisible }) {
+            pendingOpenDownloads = false
+            return
+        }
+
+        // Wait until there is something to show the screen over.
+        if (container == null) return
+
+        pendingOpenDownloads = false
+        supportFragmentManager.addFragment<DownloadsFragment>()
+        Timber.i("Opened the downloads screen from a notification")
     }
 
     override fun onDestroy() {

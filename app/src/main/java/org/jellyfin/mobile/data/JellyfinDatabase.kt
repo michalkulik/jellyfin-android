@@ -30,12 +30,13 @@ import java.util.UUID
         DownloadEntity::class,
         DownloadFileEntity::class,
     ],
-    version = 6,
+    version = 7,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4, spec = JellyfinDatabase.MigrateV4::class),
         AutoMigration(from = 4, to = 5, spec = JellyfinDatabase.MigrateV5::class),
         AutoMigration(from = 5, to = 6),
+        AutoMigration(from = 6, to = 7),
     ],
 )
 @TypeConverters(JellyfinDatabase.Converters::class)

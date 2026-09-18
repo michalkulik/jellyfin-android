@@ -83,6 +83,15 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
         }
     }
 
+    /**
+     * Cancels a running or queued download, including the server side conversion.
+     */
+    fun cancelDownload(download: DownloadEntity) {
+        viewModelScope.launch {
+            downloadManager.cancel(download.id)
+        }
+    }
+
     fun removeDownload(download: DownloadEntity, deleteFiles: Boolean) {
         viewModelScope.launch {
             downloadManager.delete(download.id, deleteFiles)

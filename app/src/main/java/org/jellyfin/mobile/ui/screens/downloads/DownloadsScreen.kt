@@ -229,6 +229,7 @@ fun DownloadsScreen(
                         downloads = downloads,
                         onOpen = { viewModel.openDownload(it) },
                         onDownload = { viewModel.download(it) },
+                        onCancel = { viewModel.cancelDownload(it) },
                         selection = selection,
                         onToggleSelection = { download ->
                             if (selection.contains(download.id)) selection.remove(download.id)

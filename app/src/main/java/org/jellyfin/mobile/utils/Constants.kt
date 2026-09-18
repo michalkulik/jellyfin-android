@@ -21,6 +21,7 @@ object Constants {
 
     const val FRAGMENT_CONNECT_EXTRA_ERROR = "org.jellyfin.mobile.intent.extra.ERROR"
     const val FRAGMENT_WEB_VIEW_EXTRA_SERVER = "org.jellyfin.mobile.intent.extra.SERVER"
+    const val EXTRA_OPEN_DOWNLOADS = "org.jellyfin.mobile.intent.extra.OPEN_DOWNLOADS"
 
     // Preference keys
     const val PREF_SERVER_ID = "pref_server_id"

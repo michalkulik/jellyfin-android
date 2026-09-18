@@ -7,18 +7,24 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Checkbox
 import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.ListItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -49,6 +55,7 @@ fun DownloadsList(
     downloads: List<DownloadFiles>,
     onOpen: (DownloadEntity) -> Unit,
     onDownload: (DownloadEntity) -> Unit,
+    onCancel: (DownloadEntity) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues.Zero,
     selection: Set<Long> = emptySet(),
@@ -98,6 +105,7 @@ fun DownloadsList(
                         downloadFiles = downloadFiles,
                         onOpen = { onOpen(downloadFiles.download) },
                         onDownload = { onDownload(downloadFiles.download) },
+                        onCancel = { onCancel(downloadFiles.download) },
                         onToggleSelection = { onToggleSelection(downloadFiles.download) },
                         isSelected = selection.contains(downloadFiles.download.id),
                         selectionMode = selectionMode,
@@ -113,6 +121,7 @@ fun DownloadsList(
                 downloadFiles = downloadFiles,
                 onOpen = { onOpen(downloadFiles.download) },
                 onDownload = { onDownload(downloadFiles.download) },
+                onCancel = { onCancel(downloadFiles.download) },
                 onToggleSelection = { onToggleSelection(downloadFiles.download) },
                 isSelected = selection.contains(downloadFiles.download.id),
                 selectionMode = selectionMode,
@@ -127,6 +136,7 @@ fun DownloadItem(
     downloadFiles: DownloadFiles,
     onOpen: () -> Unit,
     onDownload: () -> Unit,
+    onCancel: () -> Unit,
     onToggleSelection: () -> Unit,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
@@ -142,12 +152,15 @@ fun DownloadItem(
         }
     }
 
+    val isActive = download.status.isActive
+
     ListItem(
         modifier = modifier
             .combinedClickable(
                 onClick = {
                     when {
                         selectionMode -> onToggleSelection()
+                        isActive -> Unit
                         !isVerified -> onDownload()
                         else -> onOpen()
                     }
@@ -194,20 +207,22 @@ fun DownloadItem(
             }
         },
         secondaryText = {
-            if (
-                download.status == DownloadStatus.DOWNLOADING ||
-                download.status == DownloadStatus.QUEUED ||
-                download.status == DownloadStatus.CONVERTING
-            ) {
-                LinearProgressIndicator()
-            } else if (isVerified) {
-                Text(
+            when {
+                isActive -> DownloadProgress(status = download.status, progress = download.progress)
+                isVerified -> Text(
                     text = Formatter.formatShortFileSize(context, files.sumOf { it.size }),
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
                 )
-            } else {
-                Text(
+
+                download.status == DownloadStatus.CANCELLED -> Text(
+                    text = stringResource(R.string.download_cancelled),
+                    color = Color.Gray,
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                )
+
+                else -> Text(
                     text = stringResource(R.string.download_incomplete),
                     color = Color.Yellow,
                     overflow = TextOverflow.Ellipsis,
@@ -215,6 +230,67 @@ fun DownloadItem(
                 )
             }
         },
-        singleLineSecondaryText = true,
+        trailing = if (isActive) {
+            {
+                IconButton(
+                    onClick = onCancel,
+                    enabled = !selectionMode,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = stringResource(R.string.download_cancel),
+                    )
+                }
+            }
+        } else {
+            null
+        },
+        singleLineSecondaryText = false,
     )
+}
+
+/**
+ * Shows which phase is running (converting or downloading) and how far along it is.
+ */
+@Composable
+private fun DownloadProgress(
+    status: DownloadStatus,
+    progress: Int,
+) {
+    val label = when (status) {
+        DownloadStatus.CONVERTING -> stringResource(R.string.download_converting)
+        DownloadStatus.QUEUED -> stringResource(R.string.download_queued)
+        else -> stringResource(R.string.download_downloading)
+    }
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.caption,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (progress in 0..100) {
+                Text(
+                    text = " ${progress}%",
+                    style = MaterialTheme.typography.caption,
+                )
+            }
+        }
+
+        if (progress in 0..100) {
+            LinearProgressIndicator(
+                progress = progress / 100f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+            )
+        }
+    }
 }

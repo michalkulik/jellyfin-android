@@ -11,6 +11,7 @@ import org.jellyfin.mobile.data.entity.DownloadEntity
 import org.jellyfin.mobile.data.entity.DownloadFileEntity
 import org.jellyfin.mobile.data.entity.DownloadFiles
 import org.jellyfin.mobile.data.entity.DownloadStateRow
+import org.jellyfin.mobile.downloads.DownloadStatus
 import org.jellyfin.sdk.model.UUID
 
 @Dao
@@ -23,6 +24,9 @@ interface DownloadDao {
     fun getAllDownloadsWithFiles(): Flow<List<DownloadFiles>>
 
     @Transaction
+    @Query("UPDATE download SET status = 'QUEUED', job_id = NULL, progress = -1, modified_at = :modifiedAt WHERE status IN ('CONVERTING', 'DOWNLOADING')")
+    suspend fun requeueActiveDownloads(modifiedAt: Long = System.currentTimeMillis())
+
     @Query("SELECT * FROM download WHERE status = 'QUEUED' OR status = 'CONVERTING' OR status = 'DOWNLOADING' ORDER BY created_at ASC")
     fun getQueuedDownloads(): List<DownloadFiles>
 
@@ -38,6 +42,25 @@ interface DownloadDao {
 
     @Query("SELECT * FROM download WHERE item_id = :itemId")
     fun getDownloadByItemId(itemId: UUID): DownloadEntity?
+
+    @Query("SELECT * FROM download WHERE path = :path")
+    suspend fun getDownloadsByPath(path: String): List<DownloadEntity>
+
+    /**
+     * Updates only the progress of a download so the progress updates don't overwrite other columns
+     * written by concurrent workers.
+     */
+    @Query("UPDATE download SET progress = :progress, modified_at = :modifiedAt WHERE id = :id")
+    suspend fun updateProgress(id: Long, progress: Int, modifiedAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE download SET status = :status, job_id = :jobId, progress = :progress, modified_at = :modifiedAt WHERE id = :id")
+    suspend fun updatePhase(
+        id: Long,
+        status: DownloadStatus,
+        jobId: String?,
+        progress: Int,
+        modifiedAt: Long = System.currentTimeMillis(),
+    )
 
     @Query("SELECT * FROM download WHERE id = :id")
     suspend fun getDownload(id: Long): DownloadEntity?

@@ -50,6 +50,12 @@ data class DownloadEntity(
     /// Media source id the download was created for.
     @ColumnInfo(name = "media_source_id") val mediaSourceId: String? = null,
 
+    /// Id of the server side conversion job, used to cancel it. Null when no conversion is running.
+    @ColumnInfo(name = "job_id") val jobId: String? = null,
+
+    /// Progress of the active phase in percent (0-100), or -1 when unknown.
+    @ColumnInfo(name = "progress", defaultValue = "-1") val progress: Int = -1,
+
     @ColumnInfo(name = "status") val status: DownloadStatus = DownloadStatus.QUEUED,
 
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),

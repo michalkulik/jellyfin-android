@@ -21,6 +21,11 @@ import org.jellyfin.sdk.model.api.MediaStreamType
 import timber.log.Timber
 import java.io.IOException
 
+/**
+ * Thrown when a download was cancelled by the user while a long running phase was active.
+ */
+class DownloadCancelledException(val downloadId: Long) : Exception("Download $downloadId was cancelled")
+
 class DownloadQueue(
     private val context: Context,
     private val apiClientController: ApiClientController,
@@ -35,10 +40,17 @@ class DownloadQueue(
     private val _downloader = FileDownloader(okHttpClient)
     private val _downloads = mutableListOf<DownloadFiles>()
 
+    /**
+     * Downloads that failed (or were cancelled) during this worker run. They are skipped when the
+     * queue is refetched so one broken item cannot block the remaining downloads; they are retried
+     * on the next worker run.
+     */
+    private val _skipped = mutableSetOf<Long>()
+
     suspend fun prepare(): Boolean {
         val queuedDownloads = downloadDao.getQueuedDownloads()
         _downloads.clear()
-        _downloads.addAll(queuedDownloads)
+        _downloads.addAll(queuedDownloads.filterNot { it.download.id in _skipped })
         return _downloads.any()
     }
 
@@ -57,44 +69,89 @@ class DownloadQueue(
     }
 
     private suspend fun process(downloadWithFiles: DownloadFiles) {
-        // Mark as downloading
-        downloadDao.update(downloadWithFiles.download.copy(status = DownloadStatus.DOWNLOADING))
+        val downloadId = downloadWithFiles.download.id
+
+        // The download may have been cancelled while it was waiting in the queue.
+        if (downloadDao.getDownload(downloadId)?.status == DownloadStatus.CANCELLED) return
+
+        setPhase(downloadId, DownloadStatus.DOWNLOADING)
+
         val api = apiClientController.getApiClient(downloadWithFiles.download.serverId, downloadWithFiles.download.userId)
 
         try {
             val queuedFiles = prepareFiles(api, downloadWithFiles)
 
             val notificationProgressCallback = downloadNotificationManager.downloadFile(
-                downloadWithFiles.download.id,
+                downloadId,
                 downloadWithFiles.download.getDisplayName(context).orEmpty(),
             )
 
+            val progressCallback = object : FileDownloader.ProgressCallback {
+                override suspend fun onProgress(downloaded: Long, total: Long) {
+                    val progress = if (total > 0) ((downloaded * 100) / total).toInt().coerceIn(0, 100) else -1
+                    downloadDao.updateProgress(downloadId, progress)
+                    notificationProgressCallback.onProgress(downloaded, total)
+                }
+            }
+
+            // The main file decides the reported progress; the image and subtitles are small extras.
             for (queuedFile in queuedFiles) {
-                download(api, queuedFile, notificationProgressCallback)
+                ensureNotCancelled(downloadId)
+                download(api, queuedFile, progressCallback)
             }
 
             notificationProgressCallback.onEnd()
-            downloadDao.update(downloadWithFiles.download.copy(status = DownloadStatus.DOWNLOADED))
+            setPhase(downloadId, DownloadStatus.DOWNLOADED, progress = 100)
 
             // Post a persistent, dismissible completion notice (the foreground notification
             // is removed by WorkManager once the worker stops).
             downloadNotificationManager.downloadCompleted(
-                downloadWithFiles.download.id,
+                downloadId,
                 downloadWithFiles.download.getDisplayName(context).orEmpty(),
             )
+        } catch (e: DownloadCancelledException) {
+            // Nothing to do: the cancel action already stored the cancelled state.
+            _skipped += downloadId
+            downloadNotificationManager.cancelProgressNotification()
         } catch (e: CancellationException) {
             // The download could've been canceled by the app, in which case we need to refresh it before making changes
-            val download = downloadDao.getDownload(downloadWithFiles.download.id)
-            if (download?.status == DownloadStatus.DOWNLOADING) {
-                downloadDao.update(download.copy(status = DownloadStatus.QUEUED))
+            val download = downloadDao.getDownload(downloadId)
+            if (download?.status?.isActive == true) {
+                setPhase(downloadId, DownloadStatus.QUEUED, progress = -1)
             }
             throw e
         } catch (e: IOException) {
-            downloadDao.update(downloadWithFiles.download.copy(status = DownloadStatus.QUEUED))
-            throw e
+            // Transient problem: keep the download queued for the next worker run, but do not let it
+            // block the other queued downloads in this run.
+            Timber.w(e, "Download %d failed, will retry later", downloadId)
+            setPhase(downloadId, DownloadStatus.QUEUED, progress = -1)
+            _skipped += downloadId
         } catch (e: Exception) {
-            downloadDao.update(downloadWithFiles.download.copy(status = DownloadStatus.ERROR))
-            throw e
+            Timber.e(e, "Download %d failed", downloadId)
+            setPhase(downloadId, DownloadStatus.ERROR, progress = -1)
+            _skipped += downloadId
+        }
+    }
+
+    /**
+     * Updates the status of a download without touching the columns that are written by other tasks.
+     */
+    private suspend fun setPhase(
+        downloadId: Long,
+        status: DownloadStatus,
+        jobId: String? = null,
+        progress: Int = -1,
+    ) {
+        downloadDao.updatePhase(downloadId, status, jobId, progress)
+    }
+
+    /**
+     * Throws when the download was cancelled, so long running phases (especially the server side
+     * conversion) stop instead of running to completion.
+     */
+    private suspend fun ensureNotCancelled(downloadId: Long) {
+        if (downloadDao.getDownload(downloadId)?.status == DownloadStatus.CANCELLED) {
+            throw DownloadCancelledException(downloadId)
         }
     }
 
@@ -192,7 +249,13 @@ class DownloadQueue(
         )
         Timber.i("Created download job %s for %s", job.id, item.name)
 
+        // Remember the job so the user can cancel the server side conversion from the UI.
+        setPhase(download.id, DownloadStatus.CONVERTING, jobId = job.id)
+
         val readyJob = awaitConversion(api, download, job)
+
+        // The conversion is done; reset the state left over from the conversion phase.
+        setPhase(download.id, DownloadStatus.DOWNLOADING, progress = 0)
 
         return QueuedFile(
             file = createOrUpdateFile(
@@ -208,14 +271,15 @@ class DownloadQueue(
 
     /**
      * Polls the server side conversion job until it is ready and returns the finished job.
+     *
+     * The status is re-read from the database on every poll, so cancelling the download stops both
+     * the polling here and the conversion on the server.
      */
     private suspend fun awaitConversion(
         api: ApiClient,
         download: DownloadEntity,
         job: DownloadJobDto,
     ): DownloadJobDto {
-        downloadDao.update(download.copy(status = DownloadStatus.CONVERTING))
-
         val notification = downloadNotificationManager.convertFile(
             download.id,
             download.getDisplayName(context).orEmpty(),
@@ -230,8 +294,23 @@ class DownloadQueue(
                     "failed", "cancelled" -> error(current.error ?: "Conversion ${current.status}")
                 }
 
+                // Stop as soon as the user cancelled, otherwise the conversion would keep running.
+                ensureNotCancelled(download.id)
+
+                // The server starts converting only once a conversion slot is free. Report the
+                // waiting state so the UI does not claim the conversion already runs. The progress
+                // is only reset when the phase changes, so a reported percentage survives the poll.
+                val waitingForSlot = current.status.equals("queued", ignoreCase = true)
+                val phase = if (waitingForSlot) DownloadStatus.QUEUED else DownloadStatus.CONVERTING
+                if (downloadDao.getDownload(download.id)?.status != phase) {
+                    downloadDao.updatePhase(download.id, phase, job.id, -1)
+                }
+
                 delay(CONVERSION_POLL_INTERVAL_MS)
                 current = downloadJobClient.getJob(api, download.item.id, current.id)
+
+                val progress = current.progress?.toInt()?.coerceIn(0, 100) ?: -1
+                downloadDao.updateProgress(download.id, progress)
                 notification.onProgress(current.progress)
             }
         } finally {

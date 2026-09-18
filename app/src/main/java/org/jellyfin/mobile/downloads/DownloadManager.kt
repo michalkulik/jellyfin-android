@@ -3,6 +3,7 @@ package org.jellyfin.mobile.downloads
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jellyfin.mobile.app.ApiClientController
 import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.app.StorageManager
 import org.jellyfin.mobile.data.dao.DownloadDao
@@ -11,6 +12,7 @@ import org.jellyfin.mobile.data.entity.ServerEntity
 import org.jellyfin.mobile.data.entity.UserEntity
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ItemFields
 import timber.log.Timber
 import java.util.UUID
@@ -21,6 +23,8 @@ class DownloadManager(
     private val downloadDao: DownloadDao,
     private val appPreferences: AppPreferences,
     private val storageManager: StorageManager,
+    private val apiClientController: ApiClientController,
+    private val downloadJobClient: DownloadJobClient,
 ) {
     companion object {
         /**
@@ -65,6 +69,8 @@ class DownloadManager(
                         maxBitrate = quality.maxBitrate,
                         maxHeight = quality.maxHeight,
                         mediaSourceId = item.mediaSources?.firstOrNull()?.id?.toString(),
+                        jobId = null,
+                        progress = -1,
                         status = DownloadStatus.QUEUED,
                         modifiedAt = System.currentTimeMillis(),
                     )
@@ -76,7 +82,7 @@ class DownloadManager(
                         userId = user.id,
                         itemId = item.id,
                         item = item,
-                        path = item.name ?: item.id.toString(),
+                        path = uniquePath(item),
                         maxBitrate = quality.maxBitrate,
                         maxHeight = quality.maxHeight,
                         mediaSourceId = item.mediaSources?.firstOrNull()?.id?.toString(),
@@ -114,6 +120,8 @@ class DownloadManager(
         downloadDao.update(
             downloadEntity.copy(
                 status = DownloadStatus.QUEUED,
+                jobId = null,
+                progress = -1,
                 modifiedAt = System.currentTimeMillis(),
             ),
         )
@@ -123,21 +131,91 @@ class DownloadManager(
         }
     }
 
+    /**
+     * Restarts unfinished downloads after the app was closed. WorkManager cancels the download worker
+     * together with the app, which would otherwise leave downloads stuck forever.
+     */
+    suspend fun resumeActiveDownloads() = withContext(Dispatchers.IO) {
+        // Don't touch a worker that is still running (the app can be reopened while it downloads).
+        if (DownloadWorker.isActive(context)) return@withContext
+
+        // A conversion started by a previous app run keeps occupying one of the limited conversion
+        // slots on the server, so stop it before starting a new one.
+        downloadDao.getQueuedDownloads()
+            .map { it.download }
+            .filter { it.jobId != null }
+            .forEach { cancelServerJob(it) }
+
+        // The state left behind by the killed worker is stale: requeue so the conversion starts over.
+        downloadDao.requeueActiveDownloads()
+
+        if (downloadDao.getQueuedDownloads().isNotEmpty()) {
+            Timber.i("Resuming unfinished downloads")
+            DownloadWorker.start(context, appPreferences)
+        }
+    }
+
     suspend fun cancel(id: Long) = withContext(Dispatchers.IO) {
         val download = downloadDao.getDownload(id) ?: return@withContext
-        downloadDao.update(download.copy(status = DownloadStatus.CANCELLED))
 
-        if (download.status == DownloadStatus.DOWNLOADING) {
+        // Stop the server side conversion first: otherwise it keeps running even though the user
+        // cancelled the download (the app would just stop polling it).
+        cancelServerJob(download)
+
+        downloadDao.update(
+            download.copy(
+                status = DownloadStatus.CANCELLED,
+                jobId = null,
+                progress = -1,
+                modifiedAt = System.currentTimeMillis(),
+            ),
+        )
+
+        // Restart the worker so it drops the cancelled item and moves on to the next one.
+        if (download.status.isActive) {
             DownloadWorker.restart(context, appPreferences)
+        }
+    }
+
+    /**
+     * Directory used to store the files of an item. Items from different series can share a name
+     * (for example "Episode 1"), so the id is appended when the name would collide with an
+     * existing download of another item.
+     */
+    private suspend fun uniquePath(item: BaseItemDto): String {
+        val name = item.name ?: item.id.toString()
+
+        val existing = downloadDao.getDownloadsByPath(name)
+        val collidesWithOtherItem = existing.any { it.itemId != item.id }
+
+        return if (collidesWithOtherItem) {
+            "$name (${item.id.toString().take(8)})"
+        } else {
+            name
+        }
+    }
+
+    private suspend fun cancelServerJob(download: DownloadEntity) {
+        val jobId = download.jobId ?: return
+
+        runCatching {
+            val api = apiClientController.getApiClient(download.serverId, download.userId)
+            downloadJobClient.cancelJob(api, download.itemId, jobId)
+            Timber.i("Cancelled conversion job %s for %s", jobId, download.item.name)
+        }.onFailure {
+            Timber.w(it, "Unable to cancel conversion job %s", jobId)
         }
     }
 
     suspend fun delete(id: Long, deleteFiles: Boolean) = withContext(Dispatchers.IO) {
         val download = downloadDao.getDownload(id) ?: return@withContext
 
+        // A running conversion keeps the server busy, so stop it together with the download.
+        cancelServerJob(download)
+
         downloadDao.delete(id)
 
-        if (download.status == DownloadStatus.DOWNLOADING) {
+        if (download.status.isActive) {
             DownloadWorker.restart(context, appPreferences)
         }
 

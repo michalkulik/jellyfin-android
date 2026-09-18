@@ -173,6 +173,10 @@
     <string name="special_episode">Special</string>
     <string name="downloading_title">Downloading %1$s</string>
     <string name="download_cancel">Cancel</string>
+    <string name="download_cancelled">Cancelled</string>
+    <string name="download_converting">Converting on the server\u2026</string>
+    <string name="download_downloading">Downloading\u2026</string>
+    <string name="download_queued">Waiting in queue\u2026</string>
     <string name="download_completed">Download completed</string>
     <string name="download_progress">%1$d%%</string>
     <string name="converting_title">Converting %1$s</string>

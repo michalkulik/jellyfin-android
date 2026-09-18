@@ -12,4 +12,11 @@ enum class DownloadStatus {
     DOWNLOADED,
     ERROR,
     CANCELLED,
+    ;
+
+    /**
+     * Whether the download is still running, meaning it is queued, converting or downloading.
+     */
+    val isActive: Boolean
+        get() = this == QUEUED || this == CONVERTING || this == DOWNLOADING
 }

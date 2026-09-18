@@ -2,6 +2,7 @@ package org.jellyfin.mobile.downloads
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.SystemClock
@@ -9,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
 import androidx.work.ForegroundInfo
+import org.jellyfin.mobile.MainActivity
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.utils.AndroidVersion
 
@@ -58,6 +60,13 @@ class DownloadNotificationManager(
     fun convertFile(id: Long, name: String) = ConversionProgressCallback(context, notificationManager, id, name)
 
     /**
+     * Removes the progress notification, used when a download is cancelled.
+     */
+    fun cancelProgressNotification() {
+        notificationManager.cancel(NOTIFICATION_ID)
+    }
+
+    /**
      * Notification shown when a download finishes successfully. Stays until dismissed by the user.
      */
     fun downloadCompleted(id: Long, name: String) {
@@ -68,6 +77,7 @@ class DownloadNotificationManager(
             setPriority(NotificationCompat.PRIORITY_LOW)
             setAutoCancel(true)
             setOngoing(false)
+            setContentIntent(DownloadNotificationBuilder.openDownloadsIntent(context))
         }
 
         notificationManager.notify(COMPLETED_NOTIFICATION_ID, builder.build())
@@ -78,6 +88,19 @@ class DownloadNotificationManager(
  * Shared notification basics for downloads (cancel action, icons, progress).
  */
 internal object DownloadNotificationBuilder {
+    /**
+     * Opens the downloads screen when the user taps the notification.
+     */
+    fun openDownloadsIntent(context: Context): PendingIntent = requireNotNull(
+        PendingIntentCompat.getActivity(
+            context,
+            0,
+            MainActivity.openDownloadsIntent(context),
+            0,
+            false,
+        ),
+    )
+
     fun cancelAction(context: Context, downloadId: Long) = NotificationCompat.Action.Builder(
         null,
         context.getString(R.string.download_cancel),
@@ -110,6 +133,7 @@ class ConversionProgressCallback(
             setOnlyAlertOnce(true)
             setOngoing(true)
             setProgress(100, 0, true)
+            setContentIntent(DownloadNotificationBuilder.openDownloadsIntent(context))
             addAction(DownloadNotificationBuilder.cancelAction(context, downloadId))
         }
     }
@@ -153,6 +177,7 @@ class NotificationProgressCallback(
             setOnlyAlertOnce(true)
             setOngoing(true)
             setProgress(100, 0, true)
+            setContentIntent(DownloadNotificationBuilder.openDownloadsIntent(context))
             addAction(DownloadNotificationBuilder.cancelAction(context, downloadId))
         }
     }
