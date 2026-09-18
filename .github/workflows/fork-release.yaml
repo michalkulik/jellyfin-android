@@ -1,0 +1,116 @@
+name: Fork / Release
+
+# Builds the Android app and publishes it as a GitHub release with the APK attached.
+#
+# Create a release by pushing a tag (for example `v0.1.0`) or by running this workflow manually
+# with a version. When the signing secrets are configured the release APK is signed with that
+# key, otherwise the debug APK is published so there is always something to download.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, without the "v" prefix (for example 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  # Optional signing configuration. Configure these repository secrets to publish a signed
+  # release APK that can be installed over previous builds:
+  #   KEYSTORE          base64 encoded keystore file
+  #   KEYSTORE_PASSWORD keystore password
+  #   KEY_ALIAS         signing key alias
+  #   KEY_PASSWORD      signing key password
+  KEYSTORE_BASE64: ${{ secrets.KEYSTORE }}
+  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version-file: .tools-versions
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Unable to determine the version to build"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "ORG_GRADLE_PROJECT_jellyfin.version=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleLibreDebug
+
+      - name: Decode keystore
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
+
+      - name: Assemble signed release APK
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          ./gradlew :app:assembleLibreRelease \
+            -Pkeystore.file="$RUNNER_TEMP/keystore.jks" \
+            -Pkeystore.password="$KEYSTORE_PASSWORD" \
+            -Psigning.key.alias="$KEY_ALIAS" \
+            -Psigning.key.password="$KEY_PASSWORD"
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p build/fork-release
+          find app/build/outputs/apk -name '*.apk' -exec cp {} build/fork-release/ \;
+          ls -la build/fork-release
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v$VERSION"
+
+          NOTES=$(cat <<EOF
+          Automated build of Jellyfin for Android (fork).
+
+          Version: \`$VERSION\`
+          Commit: \`$GITHUB_SHA\`
+          EOF
+          )
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi
+
+          gh release upload "$TAG" build/fork-release/*.apk --clobber
