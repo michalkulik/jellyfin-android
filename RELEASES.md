@@ -25,12 +25,19 @@ It publishes its own APK builds through GitHub releases using the
 You can also run the workflow manually from the **Actions** tab (*Fork / Release* → *Run workflow*)
 and provide a version number.
 
+## What gets published
+
+Each release contains two signed APKs, and never a debug build:
+
+| File                                                    | Description                          |
+| ------------------------------------------------------- | ------------------------------------ |
+| `jellyfin-android-<version>-libre-release.apk`           | fully free build, no Chromecast      |
+| `jellyfin-android-<version>-proprietary-release.apk`     | with Chromecast support              |
+
 ## Signing
 
-Without any configuration the release contains the debug APK, which is signed with a keystore that
-is generated fresh on every CI run. Android then treats each build as a different app and cannot
-install it over the previous one, so **configure the signing secrets once** to get a stable,
-upgradeable release build.
+Signing is required — the workflow fails if the secrets are missing, because a debug APK cannot be
+used to update an installed release build.
 
 ### 1. Create a keystore
 
@@ -57,10 +64,10 @@ and create four *New repository secret* entries using the values the script prin
 | `KEY_ALIAS`         | key alias                                        |
 | `KEY_PASSWORD`      | key password                                     |
 
-### 3. Publish again
+### 3. Publish
 
-Once the secrets exist, the workflow additionally builds `assembleLibreRelease` and attaches a
-signed `jellyfin-android-<version>-libre-release.apk`.
+With the secrets in place every tagged version publishes the signed `libre` and `proprietary`
+release APKs.
 
 > Note: an installed debug build (`org.jellyfin.mobile.debug`) is a separate app from the release
 > build (`org.jellyfin.mobile`). Installing the signed release APK for the first time requires
