@@ -33,16 +33,52 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Get-KeyTool {
-    if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin/keytool.exe'))) {
-        return Join-Path $env:JAVA_HOME 'bin/keytool.exe'
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    if ($env:JAVA_HOME) {
+        $candidates.Add((Join-Path $env:JAVA_HOME 'bin/keytool.exe'))
+        $candidates.Add((Join-Path $env:JAVA_HOME 'bin/keytool'))
     }
 
-    $command = Get-Command keytool -ErrorAction SilentlyContinue
-    if ($command) {
-        return $command.Source
+    # Android Studio bundles a JDK (the JetBrains runtime) that is not on the PATH by default.
+    $studioRoots = @(
+        (Join-Path $env:ProgramFiles 'Android/Android Studio'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Android/Android Studio'),
+        (Join-Path $env:LOCALAPPDATA 'Programs/Android Studio'),
+        (Join-Path $env:LOCALAPPDATA 'JetBrains/Toolbox/apps/AndroidStudio')
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    foreach ($root in $studioRoots) {
+        $candidates.Add((Join-Path $root 'jbr/bin/keytool.exe'))
+        # Toolbox installs keep the runtime deeper in the tree.
+        Get-ChildItem -Path $root -Filter 'keytool.exe' -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 3 |
+            ForEach-Object { $candidates.Add($_.FullName) }
     }
 
-    throw "keytool was not found. Install a JDK (Android Studio bundles one) or set JAVA_HOME."
+    $javaHomeVariable = Get-ChildItem Env: | Where-Object { $_.Name -match '^JAVA_HOME' } | Select-Object -First 1
+    if ($javaHomeVariable) {
+        $candidates.Add((Join-Path $javaHomeVariable.Value 'bin/keytool.exe'))
+    }
+
+    $pathTool = Get-Command keytool -ErrorAction SilentlyContinue
+    if ($pathTool) {
+        $candidates.Add($pathTool.Source)
+    }
+
+    $keytool = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if ($keytool) {
+        return $keytool
+    }
+
+    throw @"
+keytool was not found.
+
+Install Android Studio (it bundles a JDK) or a JDK, then either:
+  - set JAVA_HOME to the JDK/JBR folder, for example:
+      `$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+  - or add the JDK's bin folder to PATH.
+"@
 }
 
 function New-RandomPassword {
