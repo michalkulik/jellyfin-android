@@ -41,6 +41,15 @@ data class DownloadEntity(
     @ColumnInfo(name = "path") val path: String,
     @ColumnInfo(name = "item") val item: BaseItemDto,
 
+    /// Maximum bitrate in bits per second requested for the server side conversion. Null means the original file.
+    @ColumnInfo(name = "max_bitrate") val maxBitrate: Int? = null,
+
+    /// Maximum video height requested for the server side conversion.
+    @ColumnInfo(name = "max_height") val maxHeight: Int? = null,
+
+    /// Media source id the download was created for.
+    @ColumnInfo(name = "media_source_id") val mediaSourceId: String? = null,
+
     @ColumnInfo(name = "status") val status: DownloadStatus = DownloadStatus.QUEUED,
 
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),

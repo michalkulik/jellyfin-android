@@ -138,6 +138,10 @@
     <string name="pref_subtitle_style_summary">You can change the subtitle style in the Android settings</string>
 
     <string name="pref_category_downloads">Downloads</string>
+    <string name="download_quality_dialog_title">Download quality</string>
+    <string name="download_quality_dialog_message">Choose the quality to download. Other qualities are converted on the server before downloading.</string>
+    <string name="download_quality_confirm">Download</string>
+    <string name="download_quality_original">Original</string>
     <string name="pref_download_location">Download location</string>
     <string name="view_downloads">View downloads</string>
     <string name="downloads">Downloads</string>

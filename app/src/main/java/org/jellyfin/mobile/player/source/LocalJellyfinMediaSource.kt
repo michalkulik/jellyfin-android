@@ -13,6 +13,20 @@ class LocalJellyfinMediaSource(
     playSessionId: String,
     playbackDetails: PlaybackDetails? = null,
     val remoteFileUri: Uri,
+    /**
+     * URIs of external subtitle sidecar files that were downloaded alongside the item.
+     */
+    val subtitleUris: List<SubtitleSidecar> = emptyList(),
 ) : JellyfinMediaSource(itemId, item, sourceInfo, playSessionId, playbackDetails) {
     override val playMethod: PlayMethod = PlayMethod.DIRECT_PLAY
 }
+
+/**
+ * A downloaded external subtitle file.
+ */
+data class SubtitleSidecar(
+    val uri: Uri,
+    val mimeType: String,
+    val language: String?,
+    val label: String?,
+)

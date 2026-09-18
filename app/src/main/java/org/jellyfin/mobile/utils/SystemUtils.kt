@@ -24,6 +24,7 @@ import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.downloads.DownloadManager
 import org.jellyfin.mobile.settings.ExternalPlayerPackage
 import org.jellyfin.mobile.ui.utils.shouldShowDownloadSettingsDialog
+import org.jellyfin.mobile.ui.utils.showDownloadQualityDialog
 import org.jellyfin.mobile.ui.utils.showDownloadSettingsDialog
 import org.jellyfin.mobile.webapp.WebViewFragment
 import org.jellyfin.sdk.model.serializer.toUUID
@@ -85,7 +86,10 @@ suspend fun MainActivity.requestDownload(itemIds: Collection<UUID>) {
     val server = mainViewModel.serverState.value.server ?: return
     val user = mainViewModel.userState.value.user ?: return
 
-    downloadManager.enqueueItems(server, user, itemIds)
+    // Let the user choose the download quality (Original or a server side conversion).
+    val quality = showDownloadQualityDialog() ?: return
+
+    downloadManager.enqueueItems(server, user, itemIds, quality)
 }
 
 fun Activity.isAutoRotateOn() = Settings.System.getInt(contentResolver, ACCELEROMETER_ROTATION, 0) == 1

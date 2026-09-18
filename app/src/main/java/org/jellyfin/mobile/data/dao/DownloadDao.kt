@@ -22,7 +22,7 @@ interface DownloadDao {
     fun getAllDownloadsWithFiles(): Flow<List<DownloadFiles>>
 
     @Transaction
-    @Query("SELECT * FROM download WHERE status = 'QUEUED' OR status = 'DOWNLOADING' ORDER BY created_at ASC")
+    @Query("SELECT * FROM download WHERE status = 'QUEUED' OR status = 'CONVERTING' OR status = 'DOWNLOADING' ORDER BY created_at ASC")
     fun getQueuedDownloads(): List<DownloadFiles>
 
     @Query("SELECT * FROM download WHERE item_id IN (:itemIds)")

@@ -29,6 +29,7 @@ import okhttp3.OkHttpClient
 import org.jellyfin.mobile.MainViewModel
 import org.jellyfin.mobile.bridge.MediaSegments
 import org.jellyfin.mobile.bridge.NativePlayer
+import org.jellyfin.mobile.downloads.DownloadJobClient
 import org.jellyfin.mobile.downloads.DownloadManager
 import org.jellyfin.mobile.downloads.DownloadNotificationManager
 import org.jellyfin.mobile.downloads.DownloadQueue
@@ -184,6 +185,7 @@ val applicationModule = module {
     single(createdAtStart = true) { StorageManager(get(), get()) }
     single { DownloadManager(get(), get(), get(), get(), get()) }
     single { DownloadNotificationManager(get()) }
-    single { DownloadQueue(get(), get(), get(), get(), get(), get()) }
+    single { DownloadJobClient(get()) }
+    single { DownloadQueue(get(), get(), get(), get(), get(), get(), get()) }
     single { FileDownloader(get()) }
 }

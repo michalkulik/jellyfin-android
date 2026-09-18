@@ -21,6 +21,7 @@ import org.jellyfin.mobile.player.interaction.PlayerWebPreferences
 import org.jellyfin.mobile.player.source.ExternalSubtitleStream
 import org.jellyfin.mobile.player.source.JellyfinMediaSource
 import org.jellyfin.mobile.player.source.LocalJellyfinMediaSource
+import org.jellyfin.mobile.player.source.SubtitleSidecar
 import org.jellyfin.mobile.player.source.MediaSourceResolver
 import org.jellyfin.mobile.player.source.PlaybackDetails
 import org.jellyfin.mobile.player.source.RemoteJellyfinMediaSource
@@ -127,6 +128,19 @@ class QueueManager(
 
         val mainFile = files.find { it.type == DownloadFileType.ITEM } ?: return PlayerException.NetworkFailure()
 
+        // External subtitles that were downloaded alongside the item, so they are available offline.
+        val subtitleSidecars = files
+            .filter { it.type == DownloadFileType.SUBTITLE }
+            .map { file ->
+                val extension = file.fileName.substringAfterLast('.', "srt").lowercase()
+                SubtitleSidecar(
+                    uri = file.uri,
+                    mimeType = subtitleMimeType(extension),
+                    language = null,
+                    label = file.fileName,
+                )
+            }
+
         val mediaSource = LocalJellyfinMediaSource(
             itemId = download.itemId,
             item = download.item,
@@ -134,6 +148,7 @@ class QueueManager(
             playSessionId = download.id.toString(),
             playbackDetails = PlaybackDetails(startTime, audioStreamIndex, subtitleStreamIndex),
             remoteFileUri = mainFile.uri,
+            subtitleUris = subtitleSidecars,
         )
         startTime?.let { duration -> mediaSource.startTime = duration }
         audioStreamIndex?.let { index -> mediaSource.selectAudioStream(mediaSource.audioStreams[index]) }
@@ -324,7 +339,7 @@ class QueueManager(
      */
     @CheckResult
     private fun prepareStreams(source: LocalJellyfinMediaSource): MediaSource {
-        return createDownloadVideoMediaSource(source.id, source.remoteFileUri)
+        return createDownloadVideoMediaSource(source.id, source.remoteFileUri, source.subtitleUris)
     }
 
     private fun prepareStreams(source: RemoteJellyfinMediaSource): MediaSource {
@@ -423,16 +438,42 @@ class QueueManager(
     }
 
     @CheckResult
-    private fun createDownloadVideoMediaSource(mediaSourceId: String, fileUri: Uri): MediaSource {
+    private fun createDownloadVideoMediaSource(
+        mediaSourceId: String,
+        fileUri: Uri,
+        subtitles: List<SubtitleSidecar> = emptyList(),
+    ): MediaSource {
         val factory: MediaSource.Factory = get()
+
+        val subtitleConfigurations = subtitles.map { subtitle ->
+            MediaItem.SubtitleConfiguration.Builder(subtitle.uri).apply {
+                setId(subtitle.uri.toString())
+                setMimeType(subtitle.mimeType)
+                subtitle.label?.let(::setLabel)
+                subtitle.language?.let(::setLanguage)
+            }.build()
+        }
 
         val mediaItem = MediaItem.Builder()
             .setMediaId(mediaSourceId)
             .setUri(fileUri)
             .setCustomCacheKey(fileUri.toString())
+            .setSubtitleConfigurations(subtitleConfigurations)
             .build()
 
         return factory.createMediaSource(mediaItem)
+    }
+
+    /**
+     * Maps a subtitle file extension to its MIME type.
+     */
+    private fun subtitleMimeType(extension: String): String = when (extension) {
+        "srt" -> MimeTypes.APPLICATION_SUBRIP
+        "vtt", "webvtt" -> MimeTypes.TEXT_VTT
+        "ass", "ssa" -> MimeTypes.TEXT_SSA
+        "ttml", "xml" -> MimeTypes.APPLICATION_TTML
+        "sub" -> MimeTypes.APPLICATION_SUBRIP
+        else -> MimeTypes.APPLICATION_SUBRIP
     }
 
     /**

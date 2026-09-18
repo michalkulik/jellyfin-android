@@ -33,6 +33,7 @@ class DownloadManager(
         server: ServerEntity,
         user: UserEntity,
         items: Collection<UUID>,
+        quality: DownloadQuality = DownloadQuality.Original,
     ) = withContext(Dispatchers.IO) {
         for (itemsChunk in items.chunked(ITEMS_BATCH)) {
             val existingItems = downloadDao.getDownloadsByItemIds(itemsChunk)
@@ -56,8 +57,12 @@ class DownloadManager(
                 if (downloadEntity != null) {
                     // If the item already exists we just update the local information for it and requeue it
                     // this will force the download worker to recheck the local file in case it is missing or changed
+                    // Requesting a different quality re-converts the item on the server.
                     downloadEntity = downloadEntity.copy(
                         item = item,
+                        maxBitrate = quality.maxBitrate,
+                        maxHeight = quality.maxHeight,
+                        mediaSourceId = item.mediaSources?.firstOrNull()?.id?.toString(),
                         status = DownloadStatus.QUEUED,
                         modifiedAt = System.currentTimeMillis(),
                     )
@@ -70,6 +75,9 @@ class DownloadManager(
                         itemId = item.id,
                         item = item,
                         path = item.name ?: item.id.toString(),
+                        maxBitrate = quality.maxBitrate,
+                        maxHeight = quality.maxHeight,
+                        mediaSourceId = item.mediaSources?.firstOrNull()?.id?.toString(),
                     )
                     downloadDao.insert(downloadEntity)
                 }

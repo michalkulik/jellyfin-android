@@ -17,6 +17,7 @@ import androidx.compose.material.Checkbox
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.ListItem
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +41,7 @@ import org.jellyfin.mobile.data.entity.DownloadEntity
 import org.jellyfin.mobile.data.entity.DownloadFiles
 import org.jellyfin.mobile.downloads.DownloadFileType
 import org.jellyfin.mobile.downloads.DownloadStatus
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.koin.compose.koinInject
 
 @Composable
@@ -54,12 +56,57 @@ fun DownloadsList(
 ) {
     val selectionMode = selection.isNotEmpty()
 
+    // Group episodic downloads by series so the list mirrors the library structure
+    // (series -> season -> episode) instead of a flat history.
+    val groups = remember(downloads) {
+        downloads.groupBy { files ->
+            val item = files.download.item
+            when {
+                item.type == BaseItemKind.EPISODE || item.type == BaseItemKind.RECORDING -> item.seriesName
+                else -> null
+            }
+        }
+    }
+
     LazyColumn(
         modifier = modifier,
         contentPadding = contentPadding,
     ) {
+        // Series groups first, with a header per series and sorted by season/episode.
+        groups.filterKeys { it != null }
+            .toList()
+            .sortedBy { (name, _) -> name }
+            .forEach { (seriesName, seriesDownloads) ->
+                item(key = "header-$seriesName") {
+                    Text(
+                        text = seriesName.orEmpty(),
+                        style = MaterialTheme.typography.subtitle1,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+
+                items(
+                    seriesDownloads.sortedWith(
+                        compareBy(
+                            { it.download.item.parentIndexNumber ?: 0 },
+                            { it.download.item.indexNumber ?: 0 },
+                        ),
+                    ),
+                    key = { it.download.id },
+                ) { downloadFiles ->
+                    DownloadItem(
+                        downloadFiles = downloadFiles,
+                        onOpen = { onOpen(downloadFiles.download) },
+                        onDownload = { onDownload(downloadFiles.download) },
+                        onToggleSelection = { onToggleSelection(downloadFiles.download) },
+                        isSelected = selection.contains(downloadFiles.download.id),
+                        selectionMode = selectionMode,
+                    )
+                }
+            }
+
         items(
-            downloads,
+            groups[null].orEmpty(),
             key = { it.download.id },
         ) { downloadFiles ->
             DownloadItem(
@@ -147,7 +194,11 @@ fun DownloadItem(
             }
         },
         secondaryText = {
-            if (download.status == DownloadStatus.DOWNLOADING || download.status == DownloadStatus.QUEUED) {
+            if (
+                download.status == DownloadStatus.DOWNLOADING ||
+                download.status == DownloadStatus.QUEUED ||
+                download.status == DownloadStatus.CONVERTING
+            ) {
                 LinearProgressIndicator()
             } else if (isVerified) {
                 Text(

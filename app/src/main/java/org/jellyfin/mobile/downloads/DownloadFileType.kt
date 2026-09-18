@@ -10,4 +10,9 @@ enum class DownloadFileType {
      * The primary image for the item.
      */
     IMAGE_PRIMARY,
+
+    /**
+     * An external subtitle file (sidecar) for the item.
+     */
+    SUBTITLE,
 }

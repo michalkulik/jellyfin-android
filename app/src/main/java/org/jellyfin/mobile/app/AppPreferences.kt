@@ -64,6 +64,18 @@ class AppPreferences(context: Context) {
             }
         }
 
+    /**
+     * Whether downloads are stored inside the app private directory instead of a user picked folder.
+     * App private downloads are only visible inside the app (like the Emby app).
+     */
+    var useAppPrivateStorage: Boolean
+        get() = sharedPreferences.getBoolean(Constants.PREF_USE_APP_PRIVATE_STORAGE, true)
+        set(value) {
+            sharedPreferences.edit {
+                putBoolean(Constants.PREF_USE_APP_PRIVATE_STORAGE, value)
+            }
+        }
+
     var storageLocation: String?
         get() = sharedPreferences.getString(Constants.PREF_STORAGE_LOCATION, null)
         set(value) {

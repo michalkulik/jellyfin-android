@@ -5,17 +5,19 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import org.jellyfin.mobile.app.ApiClientController
 import org.jellyfin.mobile.app.StorageManager
 import org.jellyfin.mobile.data.dao.DownloadDao
+import org.jellyfin.mobile.data.entity.DownloadEntity
 import org.jellyfin.mobile.data.entity.DownloadFileEntity
 import org.jellyfin.mobile.data.entity.DownloadFiles
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
-import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.model.api.ImageFormat
 import org.jellyfin.sdk.model.api.ImageType
+import org.jellyfin.sdk.model.api.MediaStreamType
 import java.io.IOException
 
 class DownloadQueue(
@@ -24,6 +26,7 @@ class DownloadQueue(
     private val downloadDao: DownloadDao,
     private val downloadNotificationManager: DownloadNotificationManager,
     private val storageManager: StorageManager,
+    private val downloadJobClient: DownloadJobClient,
     okHttpClient: OkHttpClient,
 ) {
     private data class QueuedFile(val file: DownloadFileEntity, val remoteUri: Uri)
@@ -96,11 +99,10 @@ class DownloadQueue(
 
         // Verify downloaded files and skip if valid
         if (file.status == DownloadStatus.DOWNLOADED && file.size > 0) {
-            val documentFile = DocumentFile.fromSingleUri(context, file.uri)
-            if (documentFile?.exists() == true && documentFile.length() == file.size) return
+            if (storageManager.getFileLength(file.uri) == file.size) return
         }
 
-        val fileDescriptor = context.contentResolver.openFileDescriptor(file.uri, "rw")
+        val fileDescriptor = storageManager.openFileDescriptor(file.uri)
             ?: error("Unable to open file descriptor for ${file.fileName}")
 
         downloadDao.updateFile(file.copy(status = DownloadStatus.DOWNLOADING))
@@ -116,7 +118,7 @@ class DownloadQueue(
             // Update file record with final size and status
             downloadDao.updateFile(
                 file.copy(
-                    size = DocumentFile.fromSingleUri(context, file.uri)?.length() ?: 0L,
+                    size = storageManager.getFileLength(file.uri) ?: 0L,
                     status = DownloadStatus.DOWNLOADED,
                 ),
             )
@@ -141,6 +143,9 @@ class DownloadQueue(
 
             // Add main item second as it is (often) the largest and important file
             prepareMainFile(api, downloadWithFiles, itemLocation).let(::add)
+
+            // Add external subtitles so they are available during offline playback
+            addAll(prepareSubtitleFiles(api, downloadWithFiles, itemLocation))
         }
     }
 
@@ -148,16 +153,104 @@ class DownloadQueue(
         api: ApiClient,
         downloadWithFiles: DownloadFiles,
         itemLocation: DocumentFile,
-    ) = QueuedFile(
-        file = createOrUpdateFile(
-            filter = { it.type == DownloadFileType.ITEM },
-            downloadWithFiles = downloadWithFiles,
-            itemLocation = itemLocation,
-            type = DownloadFileType.ITEM,
-            fileName = downloadWithFiles.download.item.path?.replace(Regex("^.*[\\\\/]"), "") ?: error("Missing item path"),
-        ),
-        remoteUri = api.libraryApi.getDownloadUrl(downloadWithFiles.download.item.id).toUri()
-    )
+    ): QueuedFile {
+        val download = downloadWithFiles.download
+        val item = download.item
+
+        // Original quality: download the untouched file straight from the server.
+        if (download.maxBitrate == null) {
+            return QueuedFile(
+                file = createOrUpdateFile(
+                    filter = { it.type == DownloadFileType.ITEM },
+                    downloadWithFiles = downloadWithFiles,
+                    itemLocation = itemLocation,
+                    type = DownloadFileType.ITEM,
+                    fileName = item.path?.replace(Regex("^.*[\\\\/]"), "") ?: error("Missing item path"),
+                ),
+                remoteUri = downloadJobClient.getDirectDownloadUrl(api, item.id),
+            )
+        }
+
+        // Converted quality: ask the server to convert the item, wait for it and download the result.
+        val job = downloadJobClient.createJob(
+            api,
+            item.id,
+            CreateDownloadRequestDto(
+                maxBitrate = download.maxBitrate,
+                maxHeight = download.maxHeight,
+                container = DEFAULT_CONTAINER,
+                mediaSourceId = download.mediaSourceId,
+            ),
+        )
+
+        val readyJob = awaitConversion(api, download, job)
+
+        return QueuedFile(
+            file = createOrUpdateFile(
+                filter = { it.type == DownloadFileType.ITEM },
+                downloadWithFiles = downloadWithFiles,
+                itemLocation = itemLocation,
+                type = DownloadFileType.ITEM,
+                fileName = readyJob.fileName ?: "${item.id}.$DEFAULT_CONTAINER",
+            ),
+            remoteUri = downloadJobClient.getFileUrl(api, item.id, readyJob.id),
+        )
+    }
+
+    /**
+     * Polls the server side conversion job until it is ready and returns the finished job.
+     */
+    private suspend fun awaitConversion(
+        api: ApiClient,
+        download: DownloadEntity,
+        job: DownloadJobDto,
+    ): DownloadJobDto {
+        downloadDao.update(download.copy(status = DownloadStatus.CONVERTING))
+
+        var current = job
+        while (true) {
+            when (current.status.lowercase()) {
+                "ready" -> return current
+                "failed", "cancelled" -> error(current.error ?: "Conversion ${current.status}")
+            }
+
+            delay(CONVERSION_POLL_INTERVAL_MS)
+            current = downloadJobClient.getJob(api, download.item.id, current.id)
+        }
+    }
+
+    /**
+     * Downloads the external subtitles of an item so they can be used during offline playback.
+     */
+    private suspend fun prepareSubtitleFiles(
+        api: ApiClient,
+        downloadWithFiles: DownloadFiles,
+        itemLocation: DocumentFile,
+    ): List<QueuedFile> {
+        val item = downloadWithFiles.download.item
+        val mediaSource = item.mediaSources?.firstOrNull() ?: return emptyList()
+        val mediaSourceId = mediaSource.id ?: return emptyList()
+
+        return mediaSource.mediaStreams
+            .orEmpty()
+            .filter { it.type == MediaStreamType.SUBTITLE && it.isExternal && it.index != null }
+            .mapNotNull { stream ->
+                val index = stream.index ?: return@mapNotNull null
+                val format = stream.codec?.lowercase() ?: "srt"
+                val fileName = "subtitle-$index.$format"
+
+                QueuedFile(
+                    file = createOrUpdateFile(
+                        filter = { it.type == DownloadFileType.SUBTITLE && it.fileName == fileName },
+                        downloadWithFiles = downloadWithFiles,
+                        itemLocation = itemLocation,
+                        type = DownloadFileType.SUBTITLE,
+                        fileName = fileName,
+                    ),
+                    remoteUri = downloadJobClient.getSubtitleUrl(api, item.id, mediaSourceId.toString(), index, format),
+                )
+            }
+    }
 
     private suspend fun preparePrimaryImageFile(
         api: ApiClient,
@@ -218,5 +311,10 @@ class DownloadQueue(
             downloadFile = downloadFile.copy(id = id)
             return downloadFile
         }
+    }
+
+    companion object {
+        private const val DEFAULT_CONTAINER = "mp4"
+        private const val CONVERSION_POLL_INTERVAL_MS = 2_000L
     }
 }
