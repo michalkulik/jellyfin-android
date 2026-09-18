@@ -74,6 +74,13 @@ class DownloadQueue(
 
             notificationProgressCallback.onEnd()
             downloadDao.update(downloadWithFiles.download.copy(status = DownloadStatus.DOWNLOADED))
+
+            // Post a persistent, dismissible completion notice (the foreground notification
+            // is removed by WorkManager once the worker stops).
+            downloadNotificationManager.downloadCompleted(
+                downloadWithFiles.download.id,
+                downloadWithFiles.download.getDisplayName(context).orEmpty(),
+            )
         } catch (e: CancellationException) {
             // The download could've been canceled by the app, in which case we need to refresh it before making changes
             val download = downloadDao.getDownload(downloadWithFiles.download.id)

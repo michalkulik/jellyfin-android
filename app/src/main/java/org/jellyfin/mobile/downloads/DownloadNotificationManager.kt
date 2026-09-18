@@ -17,6 +17,12 @@ class DownloadNotificationManager(
     companion object {
         const val CHANNEL_ID = "downloads"
         const val NOTIFICATION_ID = 67
+
+        /**
+         * Completion notices use a distinct id so they survive the WorkManager foreground
+         * notification being removed when the download worker stops.
+         */
+        const val COMPLETED_NOTIFICATION_ID = 68
     }
 
     private val notificationManager = requireNotNull(context.getSystemService<NotificationManager>())
@@ -63,7 +69,7 @@ class DownloadNotificationManager(
             setOngoing(false)
         }
 
-        notificationManager.notify(id.toInt(), builder.build())
+        notificationManager.notify(COMPLETED_NOTIFICATION_ID, builder.build())
     }
 }
 
