@@ -144,6 +144,14 @@
     <string name="download_quality_dialog_message_multi">Choose the quality to download. The estimated sizes below are for all %1$d items together.</string>
     <string name="download_quality_confirm">Download</string>
     <string name="download_quality_original">Original</string>
+    <string name="download_quality_15_mbps">15 Mbps (1080p)</string>
+    <string name="download_quality_12_mbps">12 Mbps (1080p)</string>
+    <string name="download_quality_8_mbps">8 Mbps (720p)</string>
+    <string name="download_quality_4_mbps">4 Mbps (720p)</string>
+    <string name="download_quality_1_5_mbps">1.5 Mbps (480p)</string>
+    <string name="download_quality_0_5_mbps">0.5 Mbps (360p)</string>
+    <string name="download_quality_0_25_mbps">0.25 Mbps (240p)</string>
+    <string name="download_quality_custom_mbps">%1$d Mbps</string>
     <string name="download_quality_estimated_size">approx. %1$s</string>
     <string name="pref_download_location">Download location</string>
     <string name="view_downloads">View downloads</string>

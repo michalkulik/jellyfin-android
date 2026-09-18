@@ -32,16 +32,21 @@ import org.jellyfin.mobile.R
 import org.jellyfin.mobile.downloads.DownloadQuality
 import kotlin.coroutines.resume
 
+/**
+ * Label of a quality. The bitrate/resolution part is language neutral, but "Original" needs to be
+ * translated, so every label is built from string resources.
+ */
+@Composable
 private fun DownloadQuality.label(): String = when (maxBitrate) {
-    null -> "Original"
-    15_000_000 -> "15 Mbps (1080p)"
-    12_000_000 -> "12 Mbps (1080p)"
-    8_000_000 -> "8 Mbps (720p)"
-    4_000_000 -> "4 Mbps (720p)"
-    1_500_000 -> "1.5 Mbps (480p)"
-    500_000 -> "0.5 Mbps (360p)"
-    250_000 -> "0.25 Mbps (240p)"
-    else -> "${maxBitrate / 1_000_000} Mbps"
+    null -> stringResource(R.string.download_quality_original)
+    15_000_000 -> stringResource(R.string.download_quality_15_mbps)
+    12_000_000 -> stringResource(R.string.download_quality_12_mbps)
+    8_000_000 -> stringResource(R.string.download_quality_8_mbps)
+    4_000_000 -> stringResource(R.string.download_quality_4_mbps)
+    1_500_000 -> stringResource(R.string.download_quality_1_5_mbps)
+    500_000 -> stringResource(R.string.download_quality_0_5_mbps)
+    250_000 -> stringResource(R.string.download_quality_0_25_mbps)
+    else -> stringResource(R.string.download_quality_custom_mbps, maxBitrate / 1_000_000)
 }
 
 /**
