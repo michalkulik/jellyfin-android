@@ -18,7 +18,7 @@ data class DownloadQuality(
 
         /**
          * Mirrors the quality presets offered by the Emby mobile apps:
-         * Original, 15, 12, 8, 4 and 1.5 Mbps (plus a custom value).
+         * Original, 15, 12, 8, 4, 1.5 and 0.5 Mbps (plus a custom value).
          */
         val PRESETS: List<DownloadQuality> = listOf(
             Original,
@@ -27,6 +27,7 @@ data class DownloadQuality(
             DownloadQuality(8_000_000, 720),
             DownloadQuality(4_000_000, 720),
             DownloadQuality(1_500_000, 480),
+            DownloadQuality(500_000, 360),
         )
     }
 }

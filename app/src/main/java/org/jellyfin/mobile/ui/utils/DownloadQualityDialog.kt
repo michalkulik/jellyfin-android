@@ -39,6 +39,7 @@ private fun DownloadQuality.label(): String = when (maxBitrate) {
     8_000_000 -> "8 Mbps (720p)"
     4_000_000 -> "4 Mbps (720p)"
     1_500_000 -> "1.5 Mbps (480p)"
+    500_000 -> "0.5 Mbps (360p)"
     else -> "${maxBitrate / 1_000_000} Mbps"
 }
 
