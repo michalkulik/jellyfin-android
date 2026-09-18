@@ -12,6 +12,7 @@ import org.jellyfin.mobile.data.entity.UserEntity
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.model.api.ItemFields
+import timber.log.Timber
 import java.util.UUID
 
 class DownloadManager(
@@ -35,6 +36,8 @@ class DownloadManager(
         items: Collection<UUID>,
         quality: DownloadQuality = DownloadQuality.Original,
     ) = withContext(Dispatchers.IO) {
+        Timber.i("Enqueueing %d item(s) at quality %s", items.size, quality)
+
         for (itemsChunk in items.chunked(ITEMS_BATCH)) {
             val existingItems = downloadDao.getDownloadsByItemIds(itemsChunk)
                 .filter { it.serverId == server.id }

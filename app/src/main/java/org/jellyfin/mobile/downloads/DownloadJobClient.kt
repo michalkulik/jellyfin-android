@@ -53,13 +53,13 @@ class DownloadJobClient(
     }
 
     fun getFileUrl(api: ApiClient, itemId: UUID, jobId: String): Uri =
-        "${api.baseUrl}Items/$itemId/Download/$jobId/File".toUri()
+        "${baseUrl(api)}Items/$itemId/Download/$jobId/File".toUri()
 
     fun getDirectDownloadUrl(api: ApiClient, itemId: UUID): Uri =
-        "${api.baseUrl}Items/$itemId/Download".toUri()
+        "${baseUrl(api)}Items/$itemId/Download".toUri()
 
     fun getSubtitleUrl(api: ApiClient, itemId: UUID, mediaSourceId: String, index: Int, format: String): Uri =
-        "${api.baseUrl}Videos/$itemId/$mediaSourceId/Subtitles/$index/Stream.$format".toUri()
+        "${baseUrl(api)}Videos/$itemId/$mediaSourceId/Subtitles/$index/Stream.$format".toUri()
 
     private fun parseJob(body: String): DownloadJobDto {
         val obj = json.decodeFromString(JsonObject.serializer(), body)
@@ -94,7 +94,7 @@ class DownloadJobClient(
         )
 
         return Request.Builder()
-            .url("${api.baseUrl}$path")
+            .url("${baseUrl(api)}$path")
             .header("Authorization", authorizationHeader)
             .header("Accept", CAMEL_CASE_JSON)
     }
@@ -112,6 +112,15 @@ class DownloadJobClient(
     companion object {
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
         private const val CAMEL_CASE_JSON = "application/json; profile=\"CamelCase\""
+
+        /**
+         * The SDK does not guarantee a trailing slash on the base url. Without one, relative paths
+         * are appended directly to the host name (e.g. "host.local" + "Items" -> "host.localitems").
+         */
+        private fun baseUrl(api: ApiClient): String {
+            val url = api.baseUrl ?: error("ApiClient has no base url")
+            return if (url.endsWith("/")) url else "$url/"
+        }
     }
 }
 

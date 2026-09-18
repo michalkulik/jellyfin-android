@@ -18,6 +18,7 @@ import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.model.api.ImageFormat
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.MediaStreamType
+import timber.log.Timber
 import java.io.IOException
 
 class DownloadQueue(
@@ -189,6 +190,7 @@ class DownloadQueue(
                 mediaSourceId = download.mediaSourceId,
             ),
         )
+        Timber.i("Created download job %s for %s", job.id, item.name)
 
         val readyJob = awaitConversion(api, download, job)
 

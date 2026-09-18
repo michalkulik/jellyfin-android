@@ -48,6 +48,7 @@ object Constants {
     const val PREF_SUBTITLE_STYLE = "pref_subtitle_style"
     const val PREF_STORAGE_LOCATION = "pref_storage_location"
     const val PREF_USE_APP_PRIVATE_STORAGE = "pref_use_app_private_storage"
+    const val PREF_DOWNLOAD_INFO = "pref_download_info"
     const val PREF_MEDIA_SEGMENT_ACTIONS = "pref_media_segment_actions"
 
     // InputManager commands

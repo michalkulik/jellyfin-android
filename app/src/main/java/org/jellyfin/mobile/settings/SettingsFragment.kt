@@ -256,38 +256,12 @@ class SettingsFragment : Fragment(), BackPressInterceptor {
             titleRes = R.string.pref_category_downloads
         }
 
-        val downloadMethods = listOf(
-            SelectionItem(
-                DownloadMethod.WIFI_ONLY.intValue,
-                R.string.wifi_only,
-                R.string.wifi_only_summary,
-            ),
-            SelectionItem(
-                DownloadMethod.MOBILE_DATA.intValue,
-                R.string.mobile_data,
-                R.string.mobile_data_summary,
-            ),
-            SelectionItem(
-                DownloadMethod.MOBILE_AND_ROAMING.intValue,
-                R.string.mobile_data_and_roaming,
-                R.string.mobile_data_and_roaming_summary,
-            ),
-        )
-        singleChoice(Constants.PREF_DOWNLOAD_METHOD, downloadMethods) {
-            titleRes = R.string.network_title
-            initialSelection = DownloadMethod.DEFAULT.intValue
-        }
-
-        downloadLocationPreference = pref(Constants.PREF_STORAGE_LOCATION) {
-            val location = storageManager.getStorageLocation()
-
-            titleRes = R.string.pref_download_location
-            summary = location?.name ?: getString(R.string.menu_item_none)
-
-            onClick {
-                storageLocationPicker.launch(location?.uri ?: storageManager.defaultStorageLocation)
-                false
-            }
+        // Downloads are always stored inside the app private storage and start immediately,
+        // so there is no storage location or network preference to configure.
+        pref(Constants.PREF_DOWNLOAD_INFO) {
+            titleRes = R.string.pref_category_downloads
+            summaryRes = R.string.pref_downloads_app_private
+            enabled = false
         }
     }
 
