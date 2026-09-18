@@ -3,8 +3,10 @@ name: Fork / Release
 # Builds the Android app and publishes it as a GitHub release with the APK attached.
 #
 # Create a release by pushing a tag (for example `v0.1.0`) or by running this workflow manually
-# with a version. When the signing secrets are configured the release APK is signed with that
-# key, otherwise the debug APK is published so there is always something to download.
+# with a version. Only release builds are published, in both flavours:
+#   - libre       (fully free, no Chromecast)
+#   - proprietary (with Chromecast support)
+# Signing is required; without the signing secrets the workflow fails on purpose.
 
 on:
   push:
@@ -65,18 +67,18 @@ jobs:
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Assemble debug APK
-        run: ./gradlew :app:assembleLibreDebug "-Pjellyfin.version=${{ steps.version.outputs.version }}"
-
       - name: Decode keystore
-        if: env.KEYSTORE_BASE64 != ''
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::The KEYSTORE secret is required to publish release builds"
+            exit 1
+          fi
+
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
 
-      - name: Assemble signed release APK
-        if: env.KEYSTORE_BASE64 != ''
+      - name: Assemble release APKs
         run: |
-          ./gradlew :app:assembleLibreRelease \
+          ./gradlew :app:assembleLibreRelease :app:assembleProprietaryRelease \
             "-Pjellyfin.version=${{ steps.version.outputs.version }}" \
             -Pkeystore.file="$RUNNER_TEMP/keystore.jks" \
             -Pkeystore.password="$KEYSTORE_PASSWORD" \
@@ -86,7 +88,8 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p build/fork-release
-          find app/build/outputs/apk -name '*.apk' -exec cp {} build/fork-release/ \;
+          find app/build/outputs/apk/libre/release app/build/outputs/apk/proprietary/release \
+            -name '*.apk' -exec cp {} build/fork-release/ \;
           ls -la build/fork-release
 
       - name: Create release

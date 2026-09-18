@@ -60,9 +60,9 @@ fun LogoHeader() {
         modifier = Modifier.padding(vertical = 25.dp),
     ) {
         Image(
-            painter = painterResource(R.drawable.app_logo),
+            painter = painterResource(R.drawable.ic_launcher_foreground),
             modifier = Modifier
-                .height(72.dp),
+                .height(96.dp),
             contentDescription = null,
         )
     }
