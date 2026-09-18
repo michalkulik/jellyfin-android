@@ -48,6 +48,7 @@ import org.jellyfin.mobile.utils.requestNoBatteryOptimizations
 import org.jellyfin.mobile.utils.runOnUiThread
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import timber.log.Timber
 
 class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClient.FileChooserListener {
     val appPreferences: AppPreferences by inject()
@@ -163,7 +164,13 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
         // Process JS functions called from other components (e.g. the PlayerActivity)
         lifecycleScope.launch {
             for (function in webappFunctionChannel) {
-                webView.evaluateJavascript(function, null)
+                // Never let a single failed evaluation kill the collector, otherwise all further
+                // calls (for example download state updates) would be lost.
+                try {
+                    webView.evaluateJavascript(function, null)
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to evaluate webapp function")
+                }
             }
         }
     }

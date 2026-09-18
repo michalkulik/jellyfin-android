@@ -1,5 +1,6 @@
 package org.jellyfin.mobile.webapp
 
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelIterator
 
@@ -7,7 +8,12 @@ import kotlinx.coroutines.channels.ChannelIterator
  * Allows to call functions within the webapp
  */
 class WebappFunctionChannel {
-    private val internalChannel = Channel<String>()
+    // Buffered so calls made while the webapp is (re)loading are not silently dropped and a slow or
+    // missing consumer cannot cause callers to fail.
+    private val internalChannel = Channel<String>(
+        capacity = Channel.BUFFERED,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     operator fun iterator(): ChannelIterator<String> = internalChannel.iterator()
 
