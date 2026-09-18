@@ -40,22 +40,22 @@ Run the helper script (it never writes the key into the repository):
 .\scripts\create-signing-key.ps1
 ```
 
-It creates `signing/fork-release.jks` in the parent of the repository and prints the four values you
-need. Keep the file and the passwords safe: losing them means you can no longer update an installed
-build in place.
+It creates `signing/fork-release.jks` next to the repository, prints the passwords and writes the
+long base64 keystore to `signing/github-secrets.txt`. Keep both files and the passwords safe:
+losing them means you can no longer update an installed build in place.
 
 ### 2. Add repository secrets
 
-In the fork: **Settings → Secrets and variables → Actions → New repository secret**.
+In the fork open
+[Settings → Secrets and variables → Actions](https://github.com/michalkulik/jellyfin-android/settings/secrets/actions)
+and create four *New repository secret* entries using the values the script printed:
 
-| Secret              | Value                                             |
-| ------------------- | ------------------------------------------------- |
-| `KEYSTORE`          | base64 encoded content of the `.jks` file         |
-| `KEYSTORE_PASSWORD` | keystore password                                 |
-| `KEY_ALIAS`         | key alias                                         |
-| `KEY_PASSWORD`      | key password                                      |
-
-The script prints the base64 value as well, ready to paste.
+| Secret              | Value                                            |
+| ------------------- | ------------------------------------------------ |
+| `KEYSTORE`          | base64 keystore from `signing/github-secrets.txt` |
+| `KEYSTORE_PASSWORD` | keystore password                                |
+| `KEY_ALIAS`         | key alias                                        |
+| `KEY_PASSWORD`      | key password                                     |
 
 ### 3. Publish again
 

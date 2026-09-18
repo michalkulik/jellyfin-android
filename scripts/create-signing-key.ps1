@@ -135,13 +135,35 @@ if (-not (Test-Path $keystorePath)) {
 
 $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($keystorePath))
 
+# The base64 keystore is long, so it is easier to copy from a file than from the terminal.
+$secretsFile = Join-Path $OutputDirectory 'github-secrets.txt'
+@"
+Add these as repository secrets:
+Settings -> Secrets and variables -> Actions -> New repository secret
+(https://github.com/michalkulik/jellyfin-android/settings/secrets/actions)
+
+KEYSTORE
+$base64
+
+KEYSTORE_PASSWORD
+$storePassword
+
+KEY_ALIAS
+$Alias
+
+KEY_PASSWORD
+$keyPassword
+"@ | Set-Content -Path $secretsFile -Encoding utf8
+
 Write-Host ''
 Write-Host 'Add these as repository secrets (Settings -> Secrets and variables -> Actions):'
 Write-Host ''
-Write-Host "KEYSTORE          = $base64"
 Write-Host "KEYSTORE_PASSWORD = $storePassword"
 Write-Host "KEY_ALIAS         = $Alias"
 Write-Host "KEY_PASSWORD      = $keyPassword"
+Write-Host ''
+Write-Host "KEYSTORE is written to: $secretsFile"
+Write-Host "  (open it in an editor and copy the value under KEYSTORE)"
 Write-Host ''
 Write-Host "Keystore file: $keystorePath"
 Write-Host 'Keep the file and the passwords safe. The keystore is ignored by git and must not be committed.'
