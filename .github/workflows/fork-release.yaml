@@ -100,10 +100,19 @@ jobs:
           TAG="v$VERSION"
 
           NOTES=$(cat <<EOF
-          Automated build of Jellyfin for Android (fork).
+          Automated build of Jellykulik (Jellyfin for Android fork).
 
           Version: \`$VERSION\`
           Commit: \`$GITHUB_SHA\`
+
+          ### Downloads
+
+          | APK | Description |
+          | --- | --- |
+          | \`jellyfin-android-$VERSION-libre-release.apk\` | Fully free build, no Chromecast |
+          | \`jellyfin-android-$VERSION-proprietary-release.apk\` | Includes Chromecast support |
+
+          Both are release builds signed with the fork's signing key, so they update in place.
           EOF
           )
 
