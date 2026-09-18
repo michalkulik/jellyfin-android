@@ -13,4 +13,5 @@ build
 *.jks
 *.keystore
 /keystore/
+/signing/
 
