@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import org.jellyfin.mobile.data.entity.DownloadEntity
 import org.jellyfin.mobile.data.entity.DownloadFileEntity
 import org.jellyfin.mobile.data.entity.DownloadFiles
+import org.jellyfin.mobile.data.entity.DownloadStateRow
 import org.jellyfin.sdk.model.UUID
 
 @Dao
@@ -27,6 +28,13 @@ interface DownloadDao {
 
     @Query("SELECT * FROM download WHERE item_id IN (:itemIds)")
     fun getDownloadsByItemIds(itemIds: Collection<UUID>): List<DownloadEntity>
+
+    /**
+     * Lightweight lookup of the download state of every known item, used to reflect the state in
+     * the web based user interface.
+     */
+    @Query("SELECT item_id, status FROM download")
+    suspend fun getDownloadStates(): List<DownloadStateRow>
 
     @Query("SELECT * FROM download WHERE item_id = :itemId")
     fun getDownloadByItemId(itemId: UUID): DownloadEntity?

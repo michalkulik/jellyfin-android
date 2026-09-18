@@ -254,7 +254,7 @@ class DownloadQueue(
 
         return mediaSource.mediaStreams
             .orEmpty()
-            .filter { it.type == MediaStreamType.SUBTITLE && it.isExternal && it.index != null }
+            .filter { it.type == MediaStreamType.SUBTITLE && it.isExternal }
             .mapNotNull { stream ->
                 val index = stream.index ?: return@mapNotNull null
                 val format = stream.codec?.lowercase() ?: "srt"
@@ -268,7 +268,7 @@ class DownloadQueue(
                         type = DownloadFileType.SUBTITLE,
                         fileName = fileName,
                     ),
-                    remoteUri = downloadJobClient.getSubtitleUrl(api, item.id, mediaSourceId.toString(), index, format),
+                    remoteUri = downloadJobClient.getSubtitleUrl(api, item.id, mediaSourceId, index, format),
                 )
             }
     }

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.media.session.PlaybackState
 import android.webkit.JavascriptInterface
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import org.jellyfin.mobile.BuildConfig
+import org.jellyfin.mobile.data.dao.DownloadDao
 import org.jellyfin.mobile.events.ActivityEvent
 import org.jellyfin.mobile.events.ActivityEventHandler
 import org.jellyfin.mobile.player.deviceprofile.DeviceProfileBuilder
@@ -48,6 +50,7 @@ class NativeInterface(private val context: Context) : KoinComponent {
     private val activityEventHandler: ActivityEventHandler = get()
     private val remoteVolumeProvider: RemoteVolumeProvider by inject()
     private val deviceProfileBuilder: DeviceProfileBuilder by inject()
+    private val downloadDao: DownloadDao = get()
 
     @SuppressLint("HardwareIds")
     @JavascriptInterface
@@ -166,6 +169,25 @@ class NativeInterface(private val context: Context) : KoinComponent {
     @JavascriptInterface
     fun openDownloadManager() {
         emitEvent(ActivityEvent.OpenDownloads)
+    }
+
+    /**
+     * Returns the state of every known download as a JSON object mapping the item id to a lowercase
+     * status (queued, converting, downloading, downloaded, error, cancelled). Used by the web based
+     * user interface to reflect the download state of items.
+     */
+    @JavascriptInterface
+    fun getDownloadInfo(): String = try {
+        val states = runBlocking { downloadDao.getDownloadStates() }
+
+        buildJsonObject {
+            states.forEach { state ->
+                put(state.itemId.toString(), state.status.name.lowercase())
+            }
+        }.toString()
+    } catch (e: Exception) {
+        Timber.e(e, "getDownloadInfo")
+        "{}"
     }
 
     @JavascriptInterface

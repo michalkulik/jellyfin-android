@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
@@ -142,6 +143,7 @@ class NotificationProgressCallback(
     private val name: String,
 ) : FileDownloader.ProgressCallback {
     private var lastProgress = -1
+    private var lastNotifyTime = 0L
 
     private val builder by lazy {
         NotificationCompat.Builder(context, DownloadNotificationManager.CHANNEL_ID).apply {
@@ -159,30 +161,44 @@ class NotificationProgressCallback(
         val progress = (downloaded.toFloat() / (total.toFloat()) * 100).toInt().coerceIn(0, 100)
 
         if (lastProgress == progress) return
+
+        // The system drops notification updates faster than roughly five per second, so throttle
+        // updates to keep the progress bar smooth without hitting the rate limit.
+        val now = SystemClock.elapsedRealtime()
+        if (progress != 100 && now - lastNotifyTime < MIN_NOTIFY_INTERVAL_MS) return
+        lastNotifyTime = now
         lastProgress = progress
 
-        if (progress == 100) {
-            builder.apply {
-                setContentTitle(context.getString(R.string.download_completed))
-                setContentText(name)
-                setSubText(null)
-                setProgress(0, 0, false)
-                setSmallIcon(android.R.drawable.stat_sys_download_done)
-                setOngoing(false)
-                setAutoCancel(true)
-                clearActions()
-            }
-        } else {
-            builder.apply {
-                setContentText(null)
-                setSubText(context.getString(R.string.download_progress, progress))
-                setProgress(100, progress, false)
-                setOngoing(true)
-            }
+        builder.apply {
+            setContentTitle(context.getString(R.string.downloading_title, name))
+            setContentText(null)
+            setSubText(context.getString(R.string.download_progress, progress))
+            setProgress(100, progress, false)
+            setOngoing(true)
         }
 
         notificationManager.notify(DownloadNotificationManager.NOTIFICATION_ID, builder.build())
     }
 
-    suspend fun onEnd() = onProgress(Long.MAX_VALUE, Long.MAX_VALUE)
+    /**
+     * Marks the notification as finished. Called once all files of the download completed.
+     */
+    suspend fun onEnd() {
+        builder.apply {
+            setContentTitle(context.getString(R.string.download_completed))
+            setContentText(name)
+            setSubText(null)
+            setProgress(0, 0, false)
+            setSmallIcon(android.R.drawable.stat_sys_download_done)
+            setOngoing(false)
+            setAutoCancel(true)
+            clearActions()
+        }
+
+        notificationManager.notify(DownloadNotificationManager.NOTIFICATION_ID, builder.build())
+    }
+
+    companion object {
+        private const val MIN_NOTIFY_INTERVAL_MS = 500L
+    }
 }

@@ -71,6 +71,24 @@ window.NativeShell = {
         window.NativeInterface.openDownloadManager();
     },
 
+    /**
+     * Returns a map of item id to the download state of that item, for example
+     * { "d4c1...": "downloaded" }. State values: queued, converting, downloading, downloaded,
+     * error, cancelled.
+     */
+    getDownloadInfo() {
+        try {
+            return JSON.parse(window.NativeInterface.getDownloadInfo());
+        } catch (err) {
+            console.error('Failed to read download info', err);
+            return {};
+        }
+    },
+
+    onDownloadStateChanged() {
+        window.dispatchEvent(new Event('downloadstatechange'));
+    },
+
     openClientSettings() {
         window.NativeInterface.openClientSettings();
     },

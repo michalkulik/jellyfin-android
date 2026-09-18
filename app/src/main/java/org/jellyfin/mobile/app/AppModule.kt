@@ -76,7 +76,7 @@ val applicationModule = module {
     single { ApiClientController(get(), get(), get(), get(), get()) }
 
     // Event handlers and channels
-    single { ActivityEventHandler(get()) }
+    single { ActivityEventHandler(get(), get()) }
     single { WebappFunctionChannel() }
 
     // Bridge interfaces

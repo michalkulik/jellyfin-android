@@ -10,10 +10,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jellyfin.mobile.MainActivity
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.bridge.JavascriptCallback
+import org.jellyfin.mobile.data.dao.DownloadDao
 import org.jellyfin.mobile.downloads.DownloadsFragment
 import org.jellyfin.mobile.player.ui.PlayerFragment
 import org.jellyfin.mobile.player.ui.PlayerFullscreenHelper
@@ -26,6 +29,7 @@ import timber.log.Timber
 
 class ActivityEventHandler(
     private val webappFunctionChannel: WebappFunctionChannel,
+    private val downloadDao: DownloadDao,
 ) {
     private val eventsFlow = MutableSharedFlow<ActivityEvent>(
         extraBufferCapacity = 10,
@@ -38,6 +42,19 @@ class ActivityEventHandler(
                 eventsFlow.collect { event ->
                     handleEvent(event)
                 }
+            }
+        }
+
+        // Notify the web based user interface whenever the state of a download changes so it can
+        // update the download buttons of the affected items.
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                downloadDao.getAllDownloads()
+                    .map { downloads -> downloads.map { it.itemId to it.status } }
+                    .distinctUntilChanged()
+                    .collect {
+                        webappFunctionChannel.call("window.NativeShell.onDownloadStateChanged();")
+                    }
             }
         }
     }
