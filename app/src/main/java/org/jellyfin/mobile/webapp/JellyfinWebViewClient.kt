@@ -36,6 +36,11 @@ abstract class JellyfinWebViewClient(
     private val mainViewModel: MainViewModel,
 ) : WebViewClientCompat() {
 
+    /**
+     * Guards the stale bundle recovery so a broken web client cannot cause an endless reload loop.
+     */
+    private var recoveredFromStaleBundle = false
+
     abstract fun onConnectedToWebapp()
 
     abstract fun onErrorReceived()
@@ -95,6 +100,19 @@ abstract class JellyfinWebViewClient(
         val errorMessage = errorResponse.data?.run { bufferedReader().use(Reader::readText) }
         Timber.e("Received WebView HTTP %d error: %s", errorResponse.statusCode, errorMessage)
 
+        // A cached web client bundle keeps requesting chunks that no longer exist after the server
+        // was updated. Without this the app would be stuck on a blank page, so clear the cache and
+        // load the webapp again to pick up the fresh assets.
+        if (errorResponse.statusCode == 404 && request.url.path?.endsWith(CHUNK_EXTENSION) == true) {
+            if (recoveredFromStaleBundle) return
+
+            recoveredFromStaleBundle = true
+            Timber.w("Web client bundle is stale, clearing cache and reloading")
+            view.clearCache(true)
+            view.post { view.reload() }
+            return
+        }
+
         if (request.isForMainFrame) onErrorReceived()
     }
 
@@ -120,5 +138,9 @@ abstract class JellyfinWebViewClient(
     override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
         Timber.e("Received SSL error: %s", error.toString())
         handler.cancel()
+    }
+
+    companion object {
+        private const val CHUNK_EXTENSION = ".chunk.js"
     }
 }
