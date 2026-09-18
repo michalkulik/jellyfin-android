@@ -1,5 +1,6 @@
 package org.jellyfin.mobile.ui.utils
 
+import android.text.format.Formatter
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -40,8 +42,18 @@ private fun DownloadQuality.label(): String = when (maxBitrate) {
     else -> "${maxBitrate / 1_000_000} Mbps"
 }
 
+/**
+ * Formats the estimated size shown next to a quality.
+ */
+@Composable
+private fun estimatedSizeLabel(size: Long?): String? = size
+    ?.takeIf { it > 0 }
+    ?.let { stringResource(R.string.download_quality_estimated_size, Formatter.formatShortFileSize(LocalContext.current, it)) }
+
 @Composable
 fun DownloadQualityDialogContent(
+    sizeEstimates: Map<DownloadQuality, Long?> = emptyMap(),
+    itemCount: Int = 1,
     onQualitySelected: (DownloadQuality) -> Unit,
 ) {
     val options = DownloadQuality.PRESETS
@@ -65,7 +77,11 @@ fun DownloadQualityDialogContent(
             )
 
             Text(
-                text = stringResource(R.string.download_quality_dialog_message),
+                text = if (itemCount > 1) {
+                    stringResource(R.string.download_quality_dialog_message_multi, itemCount)
+                } else {
+                    stringResource(R.string.download_quality_dialog_message)
+                },
                 style = MaterialTheme.typography.body2,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
@@ -85,7 +101,16 @@ fun DownloadQualityDialogContent(
                         selected = selectedIndex == index,
                         onClick = { selectedIndex = index },
                     )
-                    Text(text = quality.label())
+                    Column {
+                        Text(text = quality.label())
+                        estimatedSizeLabel(sizeEstimates[quality])?.let { sizeLabel ->
+                            Text(
+                                text = sizeLabel,
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -101,7 +126,10 @@ fun DownloadQualityDialogContent(
     }
 }
 
-suspend fun ComponentActivity.showDownloadQualityDialog(): DownloadQuality? =
+suspend fun ComponentActivity.showDownloadQualityDialog(
+    sizeEstimates: Map<DownloadQuality, Long?> = emptyMap(),
+    itemCount: Int = 1,
+): DownloadQuality? =
     suspendCancellableCoroutine { continuation ->
         ComponentDialog(this).apply {
             setContentView(
@@ -109,6 +137,8 @@ suspend fun ComponentActivity.showDownloadQualityDialog(): DownloadQuality? =
                     setContent {
                         AppTheme {
                             DownloadQualityDialogContent(
+                                sizeEstimates = sizeEstimates,
+                                itemCount = itemCount,
                                 onQualitySelected = { quality ->
                                     if (continuation.isActive) continuation.resume(quality)
                                     dismiss()

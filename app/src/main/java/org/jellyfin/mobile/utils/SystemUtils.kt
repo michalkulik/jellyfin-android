@@ -75,8 +75,13 @@ suspend fun MainActivity.requestDownload(itemIds: Collection<UUID>) {
     val server = mainViewModel.serverState.value.server ?: return
     val user = mainViewModel.userState.value.user ?: return
 
+    // Pre-calculate the download size per quality so the dialog can show how much space is needed.
+    val sizeEstimates = runCatching { downloadManager.estimateSizes(itemIds) }
+        .onFailure { Timber.w(it, "Unable to estimate download sizes") }
+        .getOrDefault(emptyMap())
+
     // Let the user choose the download quality (Original or a server side conversion).
-    val quality = showDownloadQualityDialog() ?: return
+    val quality = showDownloadQualityDialog(sizeEstimates, itemIds.size) ?: return
 
     downloadManager.enqueueItems(server, user, itemIds, quality)
 }

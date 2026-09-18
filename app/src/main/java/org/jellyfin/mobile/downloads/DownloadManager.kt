@@ -35,8 +35,7 @@ class DownloadManager(
         user: UserEntity,
         items: Collection<UUID>,
         quality: DownloadQuality = DownloadQuality.Original,
-    ) = withContext(Dispatchers.IO) {
-        Timber.i("Enqueueing %d item(s) at quality %s", items.size, quality)
+    ) = withContext(Dispatchers.IO) {        Timber.i("Enqueueing %d item(s) at quality %s", items.size, quality)
 
         for (itemsChunk in items.chunked(ITEMS_BATCH)) {
             val existingItems = downloadDao.getDownloadsByItemIds(itemsChunk)
@@ -89,6 +88,25 @@ class DownloadManager(
 
         if (!DownloadWorker.isActive(context)) {
             DownloadWorker.start(context, appPreferences)
+        }
+    }
+
+    /**
+     * Estimates the download size of the given items for every quality preset, so the user can see
+     * how much disk space a download will take before starting it.
+     */
+    suspend fun estimateSizes(items: Collection<UUID>): Map<DownloadQuality, Long?> = withContext(Dispatchers.IO) {
+        if (items.isEmpty()) return@withContext emptyMap()
+
+        val response by api.itemsApi.getItems(
+            ids = items,
+            fields = setOf(ItemFields.MEDIA_SOURCES),
+        )
+
+        val inputs = response.items.map { it.toDownloadSizeInput() }
+
+        DownloadQuality.PRESETS.associateWith { quality ->
+            DownloadSizeEstimator.estimateTotal(inputs, quality)
         }
     }
 
