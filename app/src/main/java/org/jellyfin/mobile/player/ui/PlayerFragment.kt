@@ -144,9 +144,8 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             }
 
             // When the fragment is restored (for example after the process was killed in the
-            // background) playback must not start on its own. A paused video stays paused and a
-            // playing video is restored paused as well, so nothing plays while the app is in the
-            // background without the user asking for it.
+            // background) the previous play state is restored instead of always starting playback.
+            // A video the user paused stays paused, so nothing plays in the background on its own.
             val restored = savedInstanceState != null
             val wasPlaying = savedInstanceState?.getBoolean(STATE_WAS_PLAYING, false) ?: false
 
