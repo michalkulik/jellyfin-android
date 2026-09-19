@@ -20,10 +20,12 @@ class DownloadPlaybackQueueTest {
             seriesId: UUID? = SERIES_ID,
             status: DownloadStatus = DownloadStatus.DOWNLOADED,
             mediaType: MediaType = MediaType.VIDEO,
+            serverId: Long = 1,
+            userId: Long = 1,
         ) = DownloadEntity(
             id = id.hashCode().toLong(),
-            serverId = 1,
-            userId = 1,
+            serverId = serverId,
+            userId = userId,
             itemId = UUID.fromString(id),
             path = "series/$id",
             item = BaseItemDto(
@@ -108,5 +110,27 @@ class DownloadPlaybackQueueTest {
         val queue = DownloadPlaybackQueue.build(unknown, listOf(s1e1, unknown))
 
         queue shouldBe listOf(unknown.itemId, s1e1.itemId)
+    }
+
+    @Test
+    fun `downloads of another user are not part of the queue`() {
+        val s1e1 = episode("00000000-0000-0000-0000-000000000001", season = 1, number = 1)
+        val s1e2 = episode("00000000-0000-0000-0000-000000000002", season = 1, number = 2)
+        val otherUser = episode("00000000-0000-0000-0000-000000000003", season = 1, number = 3, userId = 2)
+
+        val queue = DownloadPlaybackQueue.build(s1e1, listOf(s1e1, s1e2, otherUser))
+
+        queue shouldBe listOf(s1e1.itemId, s1e2.itemId)
+    }
+
+    @Test
+    fun `downloads of another server are not part of the queue`() {
+        val s1e1 = episode("00000000-0000-0000-0000-000000000001", season = 1, number = 1)
+        val s1e2 = episode("00000000-0000-0000-0000-000000000002", season = 1, number = 2)
+        val otherServer = episode("00000000-0000-0000-0000-000000000003", season = 1, number = 3, serverId = 2)
+
+        val queue = DownloadPlaybackQueue.build(s1e1, listOf(s1e1, s1e2, otherServer))
+
+        queue shouldBe listOf(s1e1.itemId, s1e2.itemId)
     }
 }

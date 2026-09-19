@@ -15,13 +15,15 @@ object DownloadPlaybackQueue {
      * Returns the ids of the downloaded episodes of the same series as [download], ordered by
      * season and episode number.
      *
-     * Falls back to the single item when it is not an episode, when the series is unknown or when
-     * no sibling episode is downloaded.
+     * Only downloads of the same server and user are considered, so downloads of another account
+     * never end up in the queue. Falls back to the single item when it is not an episode, when the
+     * series is unknown or when no sibling episode is downloaded.
      */
     fun build(download: DownloadEntity, allDownloads: List<DownloadEntity>): List<UUID> {
         val seriesId = download.item.seriesId ?: return listOf(download.itemId)
 
         val episodes = allDownloads
+            .filter { it.serverId == download.serverId && it.userId == download.userId }
             .filter { it.item.seriesId == seriesId }
             .filter { it.item.mediaType == MediaType.VIDEO }
             .filter { it.status == DownloadStatus.DOWNLOADED }
