@@ -43,16 +43,12 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
     fun openDownload(download: DownloadEntity) {
         when (download.item.mediaType) {
             MediaType.VIDEO -> {
-                val playOptions = PlayOptions(
-                    ids = listOf(download.itemId),
-                    mediaSourceId = download.itemId.toString(),
-                    startIndex = 0,
-                    startPosition = null,
-                    audioStreamIndex = null,
-                    subtitleStreamIndex = null,
-                    playFromDownloads = true,
-                )
-                activityEventHandler.emit(ActivityEvent.LaunchNativePlayer(playOptions))
+                viewModelScope.launch {
+                    val playOptions = withContext(Dispatchers.IO) {
+                        buildVideoPlayOptions(download)
+                    }
+                    activityEventHandler.emit(ActivityEvent.LaunchNativePlayer(playOptions))
+                }
             }
 
             MediaType.AUDIO,
@@ -75,6 +71,27 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
                 }
             }
         }
+    }
+
+    /**
+     * Builds the playback options for a downloaded video.
+     *
+     * For episodes the queue contains every downloaded episode of the same series, ordered by
+     * season and episode number, so playback can continue with the next downloaded episode. The
+     * tapped episode is the starting point of the queue.
+     */
+    private suspend fun buildVideoPlayOptions(download: DownloadEntity): PlayOptions {
+        val queue = DownloadPlaybackQueue.build(download, downloadDao.getAllDownloadsOnce())
+
+        return PlayOptions(
+            ids = queue,
+            mediaSourceId = download.itemId.toString(),
+            startIndex = queue.indexOf(download.itemId).coerceAtLeast(0),
+            startPosition = null,
+            audioStreamIndex = null,
+            subtitleStreamIndex = null,
+            playFromDownloads = true,
+        )
     }
 
     fun download(download: DownloadEntity) {

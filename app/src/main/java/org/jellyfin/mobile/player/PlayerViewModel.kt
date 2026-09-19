@@ -48,6 +48,7 @@ import org.jellyfin.mobile.player.mediasegments.MediaSegmentAction
 import org.jellyfin.mobile.player.mediasegments.MediaSegmentRepository
 import org.jellyfin.mobile.player.queue.QueueManager
 import org.jellyfin.mobile.player.source.JellyfinMediaSource
+import org.jellyfin.mobile.player.source.LocalJellyfinMediaSource
 import org.jellyfin.mobile.player.source.RemoteJellyfinMediaSource
 import org.jellyfin.mobile.player.ui.DecoderType
 import org.jellyfin.mobile.player.ui.DisplayPreferences
@@ -712,6 +713,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         audioManager.setStreamVolume(stream, scaled, 0)
     }
 
+    /**
+     * Whether playback should continue with the next item in the queue when the current one ends.
+     *
+     * Downloaded items always continue with the next downloaded episode, because the queue only
+     * contains items that are available offline. Remote playback follows the user preference.
+     */
+    private fun shouldAutoPlayNext(): Boolean =
+        mediaSourceOrNull is LocalJellyfinMediaSource || autoPlayNextEpisodeEnabled
+
     @Deprecated("Deprecated in Java")
     @SuppressLint("SwitchIntDef")
     override fun onPlayerStateChanged(playWhenReady: Boolean, playbackState: Int) {
@@ -762,7 +772,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
                 }
                 Player.STATE_ENDED -> {
                     reportPlaybackStop()
-                    if (!autoPlayNextEpisodeEnabled || !queueManager.next()) {
+                    if (!shouldAutoPlayNext() || !queueManager.next()) {
                         releasePlayer()
                     }
                 }

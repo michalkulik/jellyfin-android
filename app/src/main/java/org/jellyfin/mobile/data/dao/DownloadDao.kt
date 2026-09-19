@@ -19,6 +19,12 @@ interface DownloadDao {
     @Query("SELECT * FROM download ORDER BY created_at DESC")
     fun getAllDownloads(): Flow<List<DownloadEntity>>
 
+    /**
+     * One shot variant of [getAllDownloads], used to build the playback queue of downloaded items.
+     */
+    @Query("SELECT * FROM download ORDER BY created_at DESC")
+    suspend fun getAllDownloadsOnce(): List<DownloadEntity>
+
     @Transaction
     @Query("SELECT * FROM download ORDER BY created_at DESC")
     fun getAllDownloadsWithFiles(): Flow<List<DownloadFiles>>

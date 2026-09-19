@@ -315,19 +315,28 @@ class QueueManager(
 
         resetPlaybackFallback()
 
-        when (val currentMediaSource = getCurrentMediaSourceOrNull()) {
-            is LocalJellyfinMediaSource -> startDownloadPlayback(
-                itemId = currentQueue[++currentQueueIndex],
-                playWhenReady = true,
-            )
-            is RemoteJellyfinMediaSource -> startRemotePlayback(
-                itemId = currentQueue[++currentQueueIndex],
-                mediaSourceId = null,
-                maxStreamingBitrate = currentMediaSource.maxStreamingBitrate,
-            )
-            null -> return false
+        return when (val currentMediaSource = getCurrentMediaSourceOrNull()) {
+            is LocalJellyfinMediaSource -> {
+                // Skip downloads that are no longer playable (for example a file that was removed)
+                // so a single broken entry does not stop the rest of the queue.
+                while (hasNext()) {
+                    val itemId = currentQueue[++currentQueueIndex]
+                    val error = startDownloadPlayback(itemId = itemId, playWhenReady = true)
+                    if (error == null) return true
+                    Timber.w("Skipping unplayable download %s: %s", itemId, error)
+                }
+                false
+            }
+            is RemoteJellyfinMediaSource -> {
+                startRemotePlayback(
+                    itemId = currentQueue[++currentQueueIndex],
+                    mediaSourceId = null,
+                    maxStreamingBitrate = currentMediaSource.maxStreamingBitrate,
+                )
+                true
+            }
+            null -> false
         }
-        return true
     }
 
     /**
