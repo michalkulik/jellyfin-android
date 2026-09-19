@@ -79,7 +79,7 @@ class DownloadQueue(
         val api = apiClientController.getApiClient(downloadWithFiles.download.serverId, downloadWithFiles.download.userId)
 
         try {
-            val queuedFiles = prepareFiles(api, downloadWithFiles)
+            val itemLocation = getItemLocation(downloadWithFiles)
 
             val notificationProgressCallback = downloadNotificationManager.downloadFile(
                 downloadId,
@@ -94,11 +94,23 @@ class DownloadQueue(
                 }
             }
 
-            // The main file decides the reported progress; the image and subtitles are small extras.
-            for (queuedFile in queuedFiles) {
+            // The image is downloaded first so the thumbnail is visible while the (possibly long)
+            // server side conversion of the main file runs.
+            preparePrimaryImageFile(api, downloadWithFiles, itemLocation)?.let { queuedFile ->
                 ensureNotCancelled(downloadId)
                 download(api, queuedFile, progressCallback)
             }
+
+            // Subtitles are small and do not depend on the conversion either.
+            for (queuedFile in prepareSubtitleFiles(api, downloadWithFiles, itemLocation)) {
+                ensureNotCancelled(downloadId)
+                download(api, queuedFile, progressCallback)
+            }
+
+            // The main file decides the reported progress; it may need a server side conversion first.
+            val mainFile = prepareMainFile(api, downloadWithFiles, itemLocation)
+            ensureNotCancelled(downloadId)
+            download(api, mainFile, progressCallback)
 
             // The converted file on the server was only needed for this download, so release it.
             releaseServerFile(api, downloadWithFiles.download)
@@ -211,22 +223,11 @@ class DownloadQueue(
         }
     }
 
-    private suspend fun prepareFiles(api: ApiClient, downloadWithFiles: DownloadFiles): List<QueuedFile> {
+    private fun getItemLocation(downloadWithFiles: DownloadFiles): DocumentFile {
         val storageLocation = storageManager.getStorageLocation()
-        val itemLocation = storageLocation?.findFile(downloadWithFiles.download.path)
+        return storageLocation?.findFile(downloadWithFiles.download.path)
             ?: storageLocation?.createDirectory(downloadWithFiles.download.path)
             ?: error("Unable to find or create folder ${downloadWithFiles.download.path}")
-
-        return buildList {
-            // Add image as first item so it can be shown in UI during downloads
-            preparePrimaryImageFile(api, downloadWithFiles, itemLocation)?.let(::add)
-
-            // Add main item second as it is (often) the largest and important file
-            prepareMainFile(api, downloadWithFiles, itemLocation).let(::add)
-
-            // Add external subtitles so they are available during offline playback
-            addAll(prepareSubtitleFiles(api, downloadWithFiles, itemLocation))
-        }
     }
 
     private suspend fun prepareMainFile(
