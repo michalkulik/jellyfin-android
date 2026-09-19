@@ -100,6 +100,9 @@ class DownloadQueue(
                 download(api, queuedFile, progressCallback)
             }
 
+            // The converted file on the server was only needed for this download, so release it.
+            releaseServerFile(api, downloadWithFiles.download)
+
             notificationProgressCallback.onEnd()
             setPhase(downloadId, DownloadStatus.DOWNLOADED, progress = 100)
 
@@ -131,6 +134,18 @@ class DownloadQueue(
             setPhase(downloadId, DownloadStatus.ERROR, progress = -1)
             _skipped += downloadId
         }
+    }
+
+    /**
+     * Tells the server that the converted file is no longer needed so it can free the disk space.
+     * The original file is never removed by this call.
+     */
+    private suspend fun releaseServerFile(api: ApiClient, download: DownloadEntity) {
+        val jobId = downloadDao.getDownload(download.id)?.jobId ?: return
+
+        runCatching { downloadJobClient.completeJob(api, download.itemId, jobId) }
+            .onSuccess { Timber.i("Released the converted file of job %s", jobId) }
+            .onFailure { Timber.w(it, "Unable to release the converted file of job %s", jobId) }
     }
 
     /**
@@ -254,8 +269,9 @@ class DownloadQueue(
 
         val readyJob = awaitConversion(api, download, job)
 
-        // The conversion is done; reset the state left over from the conversion phase.
-        setPhase(download.id, DownloadStatus.DOWNLOADING, progress = 0)
+        // The conversion is done; move on to downloading while keeping the job id so the converted
+        // file can be released on the server once this download finished.
+        setPhase(download.id, DownloadStatus.DOWNLOADING, jobId = job.id, progress = 0)
 
         return QueuedFile(
             file = createOrUpdateFile(

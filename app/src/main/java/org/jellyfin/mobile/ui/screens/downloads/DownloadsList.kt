@@ -16,11 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Checkbox
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.ListItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -39,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jellyfin.mobile.R
@@ -130,7 +129,6 @@ fun DownloadsList(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun DownloadItem(
     downloadFiles: DownloadFiles,
@@ -154,8 +152,24 @@ fun DownloadItem(
 
     val isActive = download.status.isActive
 
-    ListItem(
+    // The stored image is created before it is downloaded, so it can be empty or incomplete while
+    // the download runs. Coil caches by url, which means it would keep serving the failed (or
+    // placeholder) result, so the size and status of the file are part of the cache key to force a
+    // reload once the file actually changed.
+    val imageFile = files.find { it.type == DownloadFileType.IMAGE_PRIMARY }
+    val imageRequest = remember(imageFile) {
+        imageFile?.uri?.let { uri ->
+            ImageRequest.Builder(context)
+                .data(uri)
+                .memoryCacheKey("${uri}:${imageFile.size}:${imageFile.status}")
+                .diskCacheKey("${uri}:${imageFile.size}:${imageFile.status}")
+                .build()
+        }
+    }
+
+    Row(
         modifier = modifier
+            .fillMaxWidth()
             .combinedClickable(
                 onClick = {
                     when {
@@ -166,53 +180,51 @@ fun DownloadItem(
                     }
                 },
                 onLongClick = { onToggleSelection() },
-            ),
-        text = {
+            )
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AnimatedVisibility(
+            visible = selectionMode,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally(),
+        ) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = null,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+        }
+
+        AsyncImage(
+            model = imageRequest,
+            placeholder = painterResource(R.drawable.ic_local_movies_white_64),
+            error = painterResource(R.drawable.ic_local_movies_white_64),
+            fallback = painterResource(R.drawable.ic_local_movies_white_64),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(width = 64.dp, height = 64.dp),
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp),
+        ) {
             val name = remember(download, context) { download.getDisplayName(context).orEmpty() }
             Text(
                 text = name,
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 2,
             )
-        },
-        icon = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AnimatedVisibility(
-                    visible = selectionMode,
-                    enter = fadeIn() + expandHorizontally(),
-                    exit = fadeOut() + shrinkHorizontally(),
-                ) {
-                    Checkbox(
-                        checked = isSelected,
-                        onCheckedChange = null,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                }
 
-                val uri = remember(files) {
-                    files.find { it.type == DownloadFileType.IMAGE_PRIMARY }?.uri
-                }
-
-                AsyncImage(
-                    model = uri,
-                    placeholder = painterResource(R.drawable.ic_local_movies_white_64),
-                    fallback = painterResource(R.drawable.ic_local_movies_white_64),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(
-                        width = 64.dp,
-                        height = 64.dp,
-                    )
-                )
-            }
-        },
-        secondaryText = {
             when {
                 isActive -> DownloadProgress(status = download.status, progress = download.progress)
                 isVerified -> Text(
                     text = Formatter.formatShortFileSize(context, files.sumOf { it.size }),
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
+                    style = MaterialTheme.typography.caption,
                 )
 
                 download.status == DownloadStatus.CANCELLED -> Text(
@@ -220,6 +232,7 @@ fun DownloadItem(
                     color = Color.Gray,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
+                    style = MaterialTheme.typography.caption,
                 )
 
                 else -> Text(
@@ -227,26 +240,23 @@ fun DownloadItem(
                     color = Color.Yellow,
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
+                    style = MaterialTheme.typography.caption,
                 )
             }
-        },
-        trailing = if (isActive) {
-            {
-                IconButton(
-                    onClick = onCancel,
-                    enabled = !selectionMode,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = stringResource(R.string.download_cancel),
-                    )
-                }
+        }
+
+        if (isActive) {
+            IconButton(
+                onClick = onCancel,
+                enabled = !selectionMode,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.download_cancel),
+                )
             }
-        } else {
-            null
-        },
-        singleLineSecondaryText = false,
-    )
+        }
+    }
 }
 
 /**

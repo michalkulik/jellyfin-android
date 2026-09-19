@@ -52,6 +52,15 @@ class DownloadJobClient(
         Unit
     }
 
+    /**
+     * Tells the server that the converted file was downloaded, so it can remove it.
+     */
+    suspend fun completeJob(api: ApiClient, itemId: UUID, jobId: String) = withContext(Dispatchers.IO) {
+        val httpRequest = buildRequest(api, "Items/$itemId/Download/$jobId/Complete").post(EMPTY_BODY).build()
+        execute(api, httpRequest)
+        Unit
+    }
+
     fun getFileUrl(api: ApiClient, itemId: UUID, jobId: String): Uri =
         "${baseUrl(api)}Items/$itemId/Download/$jobId/File".toUri()
 
@@ -111,6 +120,7 @@ class DownloadJobClient(
 
     companion object {
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+        private val EMPTY_BODY = ByteArray(0).toRequestBody(JSON_MEDIA_TYPE)
         private const val CAMEL_CASE_JSON = "application/json; profile=\"CamelCase\""
 
         /**
