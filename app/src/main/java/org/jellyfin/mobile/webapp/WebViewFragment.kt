@@ -18,8 +18,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withResumed
 import androidx.webkit.WebViewAssetLoader.AssetsPathHandler
 import androidx.webkit.WebViewCompat
 import kotlinx.coroutines.launch
@@ -32,6 +32,8 @@ import org.jellyfin.mobile.bridge.NativeInterface
 import org.jellyfin.mobile.bridge.NativePlayer
 import org.jellyfin.mobile.data.entity.ServerEntity
 import org.jellyfin.mobile.databinding.FragmentWebviewBinding
+import org.jellyfin.mobile.events.ActivityEvent
+import org.jellyfin.mobile.events.ActivityEventHandler
 import org.jellyfin.mobile.setup.ConnectFragment
 import org.jellyfin.mobile.utils.AndroidVersion
 import org.jellyfin.mobile.utils.BackPressInterceptor
@@ -43,6 +45,7 @@ import org.jellyfin.mobile.utils.dip
 import org.jellyfin.mobile.utils.extensions.getParcelableCompat
 import org.jellyfin.mobile.utils.extensions.replaceFragment
 import org.jellyfin.mobile.utils.fadeIn
+import org.jellyfin.mobile.utils.isNetworkAvailable
 import org.jellyfin.mobile.utils.isOutdated
 import org.jellyfin.mobile.utils.requestNoBatteryOptimizations
 import org.jellyfin.mobile.utils.runOnUiThread
@@ -59,6 +62,7 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
     private val nativePlayer: NativePlayer by inject()
     private lateinit var externalPlayer: ExternalPlayer
     private val mediaSegments: MediaSegments by inject()
+    private val activityEventHandler: ActivityEventHandler by inject()
 
     lateinit var server: ServerEntity
         private set
@@ -161,6 +165,16 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
             onSelectServer(error = false)
         }
 
+        // Always offer a way out of the loading screen, so a slow or missing connection never
+        // traps the user away from the downloaded media.
+        webViewBinding!!.viewDownloadsButton.setOnClickListener {
+            webView.removeCallbacks(timeoutRunnable)
+            webView.removeCallbacks(showLoadingContainerRunnable)
+            webView.stopLoading()
+            webViewBinding!!.loadingContainer.isVisible = false
+            activityEventHandler.emit(ActivityEvent.OpenDownloads)
+        }
+
         // Process JS functions called from other components (e.g. the PlayerActivity)
         lifecycleScope.launch {
             for (function in webappFunctionChannel) {
@@ -189,6 +203,15 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
             showOutdatedWebViewDialog(this)
             return
         }
+
+        // Without a network there is no point in waiting for the webapp to load, so fail fast and
+        // let the user retry or open the downloaded media instead.
+        if (!requireContext().isNetworkAvailable()) {
+            Timber.w("No network available, skipping the webapp load")
+            handleError(noNetwork = true)
+            return
+        }
+
         webViewClient = jellyfinWebViewClient
         webChromeClient = JellyfinWebChromeClient(this@WebViewFragment)
         settings.applyDefault()
@@ -248,22 +271,26 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
         }.show()
     }
 
-    private fun onSelectServer(error: Boolean = false) = runOnUiThread {
-        val activity = activity
-        if (activity != null && activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            val extras = when {
-                error -> Bundle().apply {
-                    putBoolean(Constants.FRAGMENT_CONNECT_EXTRA_ERROR, true)
+    private fun onSelectServer(error: Boolean = false, noNetwork: Boolean = false) {
+        // The fragment may be created before the activity is resumed (for example when the missing
+        // network is detected immediately), so wait for the resumed state before replacing it.
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.lifecycle.withResumed {
+                val extras = when {
+                    error -> Bundle().apply {
+                        putBoolean(Constants.FRAGMENT_CONNECT_EXTRA_ERROR, true)
+                        putBoolean(Constants.FRAGMENT_CONNECT_EXTRA_NO_NETWORK, noNetwork)
+                    }
+                    else -> null
                 }
-                else -> null
+                parentFragmentManager.replaceFragment<ConnectFragment>(extras)
             }
-            parentFragmentManager.replaceFragment<ConnectFragment>(extras)
         }
     }
 
-    private fun handleError() {
+    private fun handleError(noNetwork: Boolean = false) {
         connected = false
-        onSelectServer(error = true)
+        onSelectServer(error = true, noNetwork = noNetwork)
     }
 
     override fun onShowFileChooser(intent: Intent, filePathCallback: ValueCallback<Array<Uri>>) {

@@ -36,6 +36,9 @@
     <string name="available_servers_title">Dostępne serwery</string>
     <string name="choose_server_button_text">Wybierz serwer</string>
     <string name="connect_button_text">Połącz</string>
+    <string name="no_network_connection_title">Brak połączenia z siecią</string>
+    <string name="no_network_connection_message">Urządzenie nie jest połączone z siecią. Połącz się z Wi-Fi lub danymi mobilnymi i spróbuj ponownie albo otwórz pobrane multimedia.</string>
+    <string name="retry_connection">Spróbuj ponownie</string>
     <string name="connection_error_unsupported_version_or_product">Niewspierana wersja lub produkt</string>
     <string name="connection_error_unable_to_reach_sever">Nie można odnaleźć serwera</string>
     <string name="connection_error_cannot_connect">Nie można nawiązać połączenia.

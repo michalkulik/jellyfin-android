@@ -20,6 +20,9 @@
     <string name="connection_error_unsupported_version_or_product">Unsupported version or product</string>
     <string name="connect_button_text">Connect</string>
     <string name="choose_server_button_text">Choose server</string>
+    <string name="no_network_connection_title">No network connection</string>
+    <string name="no_network_connection_message">Your device is not connected to a network. Connect to Wi-Fi or mobile data and try again, or open your downloaded media.</string>
+    <string name="retry_connection">Try again</string>
     <string name="available_servers_title">Available servers</string>
     <string name="button_use_different_server">Use a different server</string>
 

@@ -68,9 +68,18 @@ class QueueManager(
      * Handle initial playback options from fragment.
      * Start of a playback session that can contain one or multiple played videos.
      *
+     * @param playOptions the playback options.
+     * @param preferences the web player preferences.
+     * @param playWhenReady whether playback should start immediately. Pass false to restore a
+     * paused session without briefly playing it.
+     *
      * @return an error of type [PlayerException] or null on success.
      */
-    suspend fun initializePlaybackQueue(playOptions: PlayOptions, preferences: PlayerWebPreferences? = null): PlayerException? {
+    suspend fun initializePlaybackQueue(
+        playOptions: PlayOptions,
+        preferences: PlayerWebPreferences? = null,
+        playWhenReady: Boolean = true,
+    ): PlayerException? {
         currentQueue = playOptions.ids
         currentQueueIndex = playOptions.startIndex
         resetPlaybackFallback()
@@ -94,7 +103,7 @@ class QueueManager(
             true -> playOptions.mediaSourceId?.let {
                 startDownloadPlayback(
                     itemId = itemId,
-                    playWhenReady = true,
+                    playWhenReady = playWhenReady,
                 )
             }
             else -> startRemotePlayback(
@@ -104,7 +113,7 @@ class QueueManager(
                 startTime = playOptions.startPosition,
                 audioStreamIndex = playOptions.audioStreamIndex,
                 subtitleStreamIndex = playOptions.subtitleStreamIndex,
-                playWhenReady = true,
+                playWhenReady = playWhenReady,
             )
         }
 

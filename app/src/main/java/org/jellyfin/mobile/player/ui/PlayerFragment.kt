@@ -142,13 +142,37 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
                 context.toast(R.string.player_error_invalid_play_options)
                 return@launch
             }
-            when (viewModel.queueManager.initializePlaybackQueue(playOptions, preferences)) {
+
+            // When the fragment is restored (for example after the process was killed in the
+            // background) playback must not start on its own. A paused video stays paused and a
+            // playing video is restored paused as well, so nothing plays while the app is in the
+            // background without the user asking for it.
+            val restored = savedInstanceState != null
+            val wasPlaying = savedInstanceState?.getBoolean(STATE_WAS_PLAYING, false) ?: false
+
+            when (viewModel.queueManager.initializePlaybackQueue(playOptions, preferences, playWhenReady = !restored || wasPlaying)) {
                 is PlayerException.InvalidPlayOptions -> context.toast(R.string.player_error_invalid_play_options)
                 is PlayerException.NetworkFailure -> context.toast(R.string.player_error_network_failure)
                 is PlayerException.UnsupportedContent -> context.toast(R.string.player_error_unsupported_content)
-                null -> Unit // success
+                null -> if (restored) restorePlaybackPosition(savedInstanceState)
             }
         }
+    }
+
+    /**
+     * Restores the playback position of a recreated fragment without starting playback.
+     */
+    private fun restorePlaybackPosition(savedInstanceState: Bundle) {
+        val position = savedInstanceState.getLong(STATE_PLAYBACK_POSITION, 0L)
+        if (position > 0L) viewModel.playerOrNull?.seekTo(position)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
+        val player = viewModel.playerOrNull
+        outState.putBoolean(STATE_WAS_PLAYING, player?.playWhenReady == true)
+        outState.putLong(STATE_PLAYBACK_POSITION, player?.currentPosition ?: 0L)
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -455,5 +479,10 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
     fun setPlayerMenuHelper(menuHelper: PlayerMenuHelper) {
         viewModel.setPlayerMenuHelper(menuHelper)
+    }
+
+    private companion object {
+        private const val STATE_WAS_PLAYING = "org.jellyfin.mobile.player.WAS_PLAYING"
+        private const val STATE_PLAYBACK_POSITION = "org.jellyfin.mobile.player.POSITION"
     }
 }

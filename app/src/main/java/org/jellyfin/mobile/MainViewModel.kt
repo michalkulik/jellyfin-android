@@ -34,6 +34,14 @@ class MainViewModel(
         refreshUser()
     }
 
+    /**
+     * Retries connecting to the currently saved server, used by the offline screen.
+     */
+    suspend fun retryServerConnection() {
+        val server = apiClientController.loadSavedServer() ?: return
+        switchServer(server.hostname)
+    }
+
     suspend fun setupUser(serverId: Long, userId: UUID, accessToken: String) {
         apiClientController.setupUser(serverId, userId, accessToken)
         refreshUser()

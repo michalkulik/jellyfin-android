@@ -786,6 +786,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         playerOrNull?.updateSkipMediaSegmentButton()
     }
 
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        super.onIsPlayingChanged(isPlaying)
+
+        // Refresh the notification so it becomes dismissible while paused. A notification posted
+        // during playback stays ongoing, which would leave no way to stop the playback.
+        notificationHelper.postNotification()
+    }
+
     override fun onPlayerError(error: PlaybackException) {
         if (error.cause is MediaCodecDecoderException && !fallbackPreferExtensionRenderers) {
             Timber.e(error.cause, "Decoder failed, attempting to restart playback with decoder extensions preferred")

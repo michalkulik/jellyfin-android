@@ -33,12 +33,14 @@ class ConnectFragment : Fragment() {
         ViewCompat.requestApplyInsets(composeView)
 
         val encounteredConnectionError = arguments?.getBoolean(Constants.FRAGMENT_CONNECT_EXTRA_ERROR) == true
+        val noNetworkConnection = arguments?.getBoolean(Constants.FRAGMENT_CONNECT_EXTRA_NO_NETWORK) == true
 
         composeView.setContent {
             AppTheme {
                 ConnectScreen(
                     mainViewModel = mainViewModel,
                     showExternalConnectionError = encounteredConnectionError,
+                    showNoNetworkConnection = noNetworkConnection,
                 )
             }
         }
