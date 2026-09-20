@@ -34,6 +34,7 @@ class ConnectFragment : Fragment() {
 
         val encounteredConnectionError = arguments?.getBoolean(Constants.FRAGMENT_CONNECT_EXTRA_ERROR) == true
         val noNetworkConnection = arguments?.getBoolean(Constants.FRAGMENT_CONNECT_EXTRA_NO_NETWORK) == true
+        val weakConnection = arguments?.getBoolean(Constants.FRAGMENT_CONNECT_EXTRA_WEAK_CONNECTION) == true
 
         composeView.setContent {
             AppTheme {
@@ -41,6 +42,7 @@ class ConnectFragment : Fragment() {
                     mainViewModel = mainViewModel,
                     showExternalConnectionError = encounteredConnectionError,
                     showNoNetworkConnection = noNetworkConnection,
+                    showWeakConnection = weakConnection,
                 )
             }
         }

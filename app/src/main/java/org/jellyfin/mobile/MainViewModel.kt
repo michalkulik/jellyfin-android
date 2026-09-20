@@ -35,10 +35,13 @@ class MainViewModel(
     }
 
     /**
-     * Retries connecting to the currently saved server, used by the offline screen.
+     * Retries connecting to the currently saved server, used by the offline screens.
      */
     suspend fun retryServerConnection() {
         val server = apiClientController.loadSavedServer() ?: return
+        // A StateFlow does not emit when the value is unchanged, so retrying the same server would
+        // leave the UI on the error screen forever. Reset the state first to force an emission.
+        _serverState.value = ServerState.Pending
         switchServer(server.hostname)
     }
 

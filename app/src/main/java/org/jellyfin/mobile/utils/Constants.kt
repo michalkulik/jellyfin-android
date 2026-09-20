@@ -16,16 +16,17 @@ object Constants {
     const val SHOW_PROGRESS_BAR_DELAY = 1000L
 
     /**
-     * How long the webapp is given to load before the connection is considered failed. Slow
-     * connections need more time, so this is generous enough to not give up too early.
+     * How long the webapp is given to load before the connection is considered too slow. The
+     * loader stays visible for the whole time, and afterwards the user is offered a retry.
      */
-    const val INITIAL_CONNECTION_TIMEOUT = 30000L // 30 seconds
+    const val INITIAL_CONNECTION_TIMEOUT = 10000L // 10 seconds
     val MAIN_BUNDLE_PATH_REGEX = Regex(""".*/main\.[^/\s]+\.bundle\.js""")
     const val CAST_SDK_PATH = "cast_sender.js"
     const val SESSION_CAPABILITIES_PATH = "sessions/capabilities/full"
 
     const val FRAGMENT_CONNECT_EXTRA_ERROR = "org.jellyfin.mobile.intent.extra.ERROR"
     const val FRAGMENT_CONNECT_EXTRA_NO_NETWORK = "org.jellyfin.mobile.intent.extra.NO_NETWORK"
+    const val FRAGMENT_CONNECT_EXTRA_WEAK_CONNECTION = "org.jellyfin.mobile.intent.extra.WEAK_CONNECTION"
     const val FRAGMENT_WEB_VIEW_EXTRA_SERVER = "org.jellyfin.mobile.intent.extra.SERVER"
     const val EXTRA_OPEN_DOWNLOADS = "org.jellyfin.mobile.intent.extra.OPEN_DOWNLOADS"
 

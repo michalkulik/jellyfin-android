@@ -32,6 +32,7 @@ fun ConnectScreen(
     mainViewModel: MainViewModel,
     showExternalConnectionError: Boolean,
     showNoNetworkConnection: Boolean = false,
+    showWeakConnection: Boolean = false,
     activityEventHandler: ActivityEventHandler = koinInject(),
 ) {
     Surface(color = MaterialTheme.colors.background) {
@@ -43,45 +44,58 @@ fun ConnectScreen(
                 .padding(horizontal = 16.dp),
         ) {
             LogoHeader()
-            if (showNoNetworkConnection) {
-                NoNetworkConnection(
-                    onRetry = { coroutineScope.launch { mainViewModel.retryServerConnection() } },
-                    onOpenDownloads = { activityEventHandler.emit(ActivityEvent.OpenDownloads) },
+            val onRetry: () -> Unit = { coroutineScope.launch { mainViewModel.retryServerConnection() } }
+            val onOpenDownloads: () -> Unit = { activityEventHandler.emit(ActivityEvent.OpenDownloads) }
+            when {
+                showNoNetworkConnection -> ConnectionProblemScreen(
+                    title = stringResource(R.string.no_network_connection_title),
+                    message = stringResource(R.string.no_network_connection_message),
+                    onRetry = onRetry,
+                    onOpenDownloads = onOpenDownloads,
                 )
-            } else {
-                ServerSelection(
-                    showExternalConnectionError = showExternalConnectionError,
-                    onConnected = { hostname ->
-                        mainViewModel.switchServer(hostname)
-                    },
+                showWeakConnection -> ConnectionProblemScreen(
+                    title = stringResource(R.string.weak_connection_title),
+                    message = stringResource(R.string.weak_connection_message),
+                    onRetry = onRetry,
+                    onOpenDownloads = onOpenDownloads,
                 )
-                StyledTextButton(
-                    onClick = { activityEventHandler.emit(ActivityEvent.OpenDownloads) },
-                    text = stringResource(R.string.view_downloads),
-                )
+                else -> {
+                    ServerSelection(
+                        showExternalConnectionError = showExternalConnectionError,
+                        onConnected = { hostname ->
+                            mainViewModel.switchServer(hostname)
+                        },
+                    )
+                    StyledTextButton(
+                        onClick = onOpenDownloads,
+                        text = stringResource(R.string.view_downloads),
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Shown when the device has no network at all, so the user does not have to wait for a connection
- * attempt that cannot succeed. Downloaded media stays reachable from here.
+ * Shown when the connection to the server cannot be used, either because there is no network at all
+ * or because the webapp could not be loaded in time. Downloaded media stays reachable from here.
  */
 @Stable
 @Composable
-fun NoNetworkConnection(
+fun ConnectionProblemScreen(
+    title: String,
+    message: String,
     onRetry: () -> Unit,
     onOpenDownloads: () -> Unit,
 ) {
     Column {
         Text(
-            text = stringResource(R.string.no_network_connection_title),
+            text = title,
             modifier = Modifier.padding(bottom = 8.dp),
             style = MaterialTheme.typography.h5,
         )
         Text(
-            text = stringResource(R.string.no_network_connection_message),
+            text = message,
             modifier = Modifier.padding(bottom = 16.dp),
             style = MaterialTheme.typography.body1,
         )

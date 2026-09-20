@@ -68,7 +68,10 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
         private set
     private var connected = false
     private val timeoutRunnable = Runnable {
-        handleError()
+        // The webapp did not finish loading in time. This usually means an unreachable server or a
+        // very slow connection, so offer a retry instead of waiting indefinitely.
+        Timber.w("Webapp did not load within %d ms, showing the slow connection screen", Constants.INITIAL_CONNECTION_TIMEOUT)
+        handleError(weakConnection = true)
     }
     private val showLoadingContainerRunnable = Runnable {
         webViewBinding?.loadingContainer?.isVisible = true
@@ -271,7 +274,11 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
         }.show()
     }
 
-    private fun onSelectServer(error: Boolean = false, noNetwork: Boolean = false) {
+    private fun onSelectServer(
+        error: Boolean = false,
+        noNetwork: Boolean = false,
+        weakConnection: Boolean = false,
+    ) {
         // The fragment may be created before the activity is resumed (for example when the missing
         // network is detected immediately), so wait for the resumed state before replacing it.
         viewLifecycleOwner.lifecycleScope.launch {
@@ -280,6 +287,7 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
                     error -> Bundle().apply {
                         putBoolean(Constants.FRAGMENT_CONNECT_EXTRA_ERROR, true)
                         putBoolean(Constants.FRAGMENT_CONNECT_EXTRA_NO_NETWORK, noNetwork)
+                        putBoolean(Constants.FRAGMENT_CONNECT_EXTRA_WEAK_CONNECTION, weakConnection)
                     }
                     else -> null
                 }
@@ -288,9 +296,9 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
         }
     }
 
-    private fun handleError(noNetwork: Boolean = false) {
+    private fun handleError(noNetwork: Boolean = false, weakConnection: Boolean = false) {
         connected = false
-        onSelectServer(error = true, noNetwork = noNetwork)
+        onSelectServer(error = true, noNetwork = noNetwork, weakConnection = weakConnection)
     }
 
     override fun onShowFileChooser(intent: Intent, filePathCallback: ValueCallback<Array<Uri>>) {
