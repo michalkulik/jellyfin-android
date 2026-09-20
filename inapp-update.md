@@ -98,6 +98,7 @@ sequenceDiagram
 | `JellyfinApplication.kt` | fire-and-forget check on start, cleanup of old packages |
 | `AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES`, `FileProvider`, installer `<queries>` |
 | `tools/make-test-manifest.py` | builds a `latest.json` for local testing |
+| `tools/test-version-code.sh` | checks the workflow's version code formula against `VersionUtils.kt` |
 
 Debug builds (`org.jellyfin.mobile.debug`) have a different package and key, so a release APK cannot be
 installed over them. The whole chain still runs in debug, including building the `FileProvider` uri;
