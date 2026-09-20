@@ -14,7 +14,11 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -37,6 +41,16 @@ fun ConnectScreen(
 ) {
     Surface(color = MaterialTheme.colors.background) {
         val coroutineScope = rememberCoroutineScope()
+        val initialProblem = remember {
+            when {
+                showNoNetworkConnection -> ConnectionProblem.NO_NETWORK
+                showWeakConnection -> ConnectionProblem.WEAK_CONNECTION
+                else -> null
+            }
+        }
+        // Dismissed when the user decides to pick another server, so the screen falls back to the
+        // regular server selection without leaving the fragment.
+        var problem by remember { mutableStateOf(initialProblem) }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -46,22 +60,27 @@ fun ConnectScreen(
             LogoHeader()
             val onRetry: () -> Unit = { coroutineScope.launch { mainViewModel.retryServerConnection() } }
             val onOpenDownloads: () -> Unit = { activityEventHandler.emit(ActivityEvent.OpenDownloads) }
-            when {
-                showNoNetworkConnection -> ConnectionProblemScreen(
+            val onUseDifferentServer: () -> Unit = { problem = null }
+            when (problem) {
+                ConnectionProblem.NO_NETWORK -> ConnectionProblemScreen(
                     title = stringResource(R.string.no_network_connection_title),
                     message = stringResource(R.string.no_network_connection_message),
                     onRetry = onRetry,
                     onOpenDownloads = onOpenDownloads,
+                    onUseDifferentServer = onUseDifferentServer,
                 )
-                showWeakConnection -> ConnectionProblemScreen(
+                ConnectionProblem.WEAK_CONNECTION -> ConnectionProblemScreen(
                     title = stringResource(R.string.weak_connection_title),
                     message = stringResource(R.string.weak_connection_message),
                     onRetry = onRetry,
                     onOpenDownloads = onOpenDownloads,
+                    onUseDifferentServer = onUseDifferentServer,
                 )
-                else -> {
+                null -> {
                     ServerSelection(
-                        showExternalConnectionError = showExternalConnectionError,
+                        // The previous attempt failed, but that is already explained above. Only
+                        // report it once the user is back on the regular selection screen.
+                        showExternalConnectionError = showExternalConnectionError && initialProblem == null,
                         onConnected = { hostname ->
                             mainViewModel.switchServer(hostname)
                         },
@@ -77,6 +96,15 @@ fun ConnectScreen(
 }
 
 /**
+ * The screens that stand in for the webapp when it cannot be loaded. They all offer the same
+ * actions as the loading screen: retry, the downloaded media, and another server.
+ */
+private enum class ConnectionProblem {
+    NO_NETWORK,
+    WEAK_CONNECTION,
+}
+
+/**
  * Shown when the connection to the server cannot be used, either because there is no network at all
  * or because the webapp could not be loaded in time. Downloaded media stays reachable from here.
  */
@@ -87,6 +115,7 @@ fun ConnectionProblemScreen(
     message: String,
     onRetry: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onUseDifferentServer: () -> Unit,
 ) {
     Column {
         Text(
@@ -106,6 +135,10 @@ fun ConnectionProblemScreen(
         StyledTextButton(
             text = stringResource(R.string.view_downloads),
             onClick = onOpenDownloads,
+        )
+        StyledTextButton(
+            text = stringResource(R.string.button_use_different_server),
+            onClick = onUseDifferentServer,
         )
     }
 }

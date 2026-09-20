@@ -161,8 +161,22 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
         // Setup WebView
         webView.initialize()
 
+        // The loading screen offers the same actions as the connection problem screens that follow
+        // it, so a slow connection does not look like a different state to the user.
+        webViewBinding!!.retryConnectionButton.setOnClickListener {
+            webView.removeCallbacks(timeoutRunnable)
+            webView.removeCallbacks(showLoadingContainerRunnable)
+            // Keep the loader up while the retry is in flight, otherwise the screen would briefly
+            // show the previously failed page.
+            webViewBinding!!.loadingContainer.isVisible = true
+            connected = false
+            webView.loadUrl("${server.hostname.trimEnd('/')}/")
+            webView.postDelayed(timeoutRunnable, Constants.INITIAL_CONNECTION_TIMEOUT)
+        }
+
         webViewBinding!!.useDifferentServerButton.setOnClickListener {
             webView.removeCallbacks(timeoutRunnable)
+            webView.removeCallbacks(showLoadingContainerRunnable)
             webView.stopLoading()
             webViewBinding!!.loadingContainer.isVisible = false
             onSelectServer(error = false)

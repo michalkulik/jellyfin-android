@@ -19,6 +19,15 @@
     <!-- Settings theme -->
     <style name="AppTheme.Settings" />
 
+    <!-- Filled button, matching the Compose buttons used on the connection screens -->
+    <style name="AppTheme.Button.Primary" parent="Widget.AppCompat.Button">
+        <item name="android:background">@drawable/button_primary_background</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">36dp</item>
+        <item name="android:minWidth">0dp</item>
+    </style>
+
     <!-- Theme Overlays -->
     <style name="ThemeOverlay.App.BackButton" parent="">
         <item name="colorControlNormal">?android:textColorPrimary</item>

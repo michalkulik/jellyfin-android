@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Matches the button background used by the Compose connection screens (Material 2 primary). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/jellyfin_accent" />
+    <corners android:radius="4dp" />
+</shape>
