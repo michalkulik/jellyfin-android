@@ -206,4 +206,17 @@
     <string name="download_location_not_set_description">To download media, please select a folder where the files should be stored.</string>
     <string name="download_location_inaccessible">Download location inaccessible</string>
     <string name="download_location_inaccessible_description">The selected download location is no longer accessible. Please select a different folder to resume downloads.</string>
+
+    <!-- In-app update -->
+    <string name="update_available_title">New app version</string>
+    <string name="update_available_message">Version %1$s is available, you have %2$s.</string>
+    <string name="update_button_install">Install</string>
+    <string name="update_button_later">Later</string>
+    <string name="update_failed_message">The update could not be downloaded (%1$s).</string>
+    <string name="update_notification_channel">App updates</string>
+    <string name="update_downloading_title">Downloading the app update</string>
+    <string name="update_downloading">Downloading…</string>
+    <string name="update_downloading_progress">%1$d%%</string>
+    <string name="update_install_permission_message">Allow this app to install unknown apps, then tap Install again.</string>
+    <string name="update_debug_no_install">Debug builds cannot install the release package.</string>
 </resources>

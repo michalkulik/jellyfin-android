@@ -10,6 +10,7 @@ import org.jellyfin.mobile.app.apiModule
 import org.jellyfin.mobile.app.applicationModule
 import org.jellyfin.mobile.data.databaseModule
 import org.jellyfin.mobile.downloads.DownloadManager
+import org.jellyfin.mobile.update.UpdateManager
 import org.jellyfin.mobile.utils.JellyTree
 import org.jellyfin.mobile.utils.isWebViewSupported
 import org.koin.android.ext.koin.androidContext
@@ -48,6 +49,16 @@ class JellyfinApplication : Application() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { GlobalContext.get().get<DownloadManager>().resumeActiveDownloads() }
                 .onFailure { Timber.w(it, "Unable to resume downloads") }
+        }
+
+        // Check for a newer version in the background. The result decides whether the update prompt
+        // is shown once the library screen is ready and whether the web user interface shows the
+        // update entry in the profile menu and the dashboard button.
+        val updateManager = GlobalContext.get().get<UpdateManager>()
+        updateManager.cleanupDownloadedPackages()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { updateManager.check(force = true) }
+                .onFailure { Timber.w(it, "Unable to check for app updates") }
         }
     }
 }

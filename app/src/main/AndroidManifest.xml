@@ -21,10 +21,18 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Installing the downloaded update package, the user has to allow this per app on Android 8+ -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="*/*" />
+        </intent>
+
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
         </intent>
 
         <package android:name="com.mxtech.videoplayer.ad" />
@@ -101,7 +109,26 @@
             android:grantUriPermissions="true"
             android:readPermission="android.permission.MEDIA_CONTENT_CONTROL" />
 
+        <!-- Shares the downloaded update package with the system package installer -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <receiver android:name="org.jellyfin.mobile.downloads.DownloadBroadcastReceiver" />
+
+        <receiver
+            android:name=".update.UpdatePackageReplacedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <meta-data
             android:name="com.google.android.gms.version"

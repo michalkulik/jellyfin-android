@@ -21,6 +21,9 @@ import org.jellyfin.mobile.downloads.DownloadsFragment
 import org.jellyfin.mobile.player.ui.PlayerFragment
 import org.jellyfin.mobile.player.ui.PlayerFullscreenHelper
 import org.jellyfin.mobile.settings.SettingsFragment
+import org.jellyfin.mobile.update.UpdateDialogFragment
+import org.jellyfin.mobile.update.UpdateManager
+import org.jellyfin.mobile.update.toJsonString
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.mobile.utils.extensions.addFragment
 import org.jellyfin.mobile.utils.requestDownload
@@ -30,6 +33,7 @@ import timber.log.Timber
 class ActivityEventHandler(
     private val webappFunctionChannel: WebappFunctionChannel,
     private val downloadDao: DownloadDao,
+    private val updateManager: UpdateManager,
 ) {
     private val eventsFlow = MutableSharedFlow<ActivityEvent>(
         extraBufferCapacity = 10,
@@ -55,6 +59,16 @@ class ActivityEventHandler(
                     .collect {
                         webappFunctionChannel.call("window.NativeShell.onDownloadStateChanged();")
                     }
+            }
+        }
+
+        // Keep the update entry in the profile menu and the dashboard button in sync with the
+        // state of the updater.
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                updateManager.state.collect { state ->
+                    webappFunctionChannel.call("window.NativeShell.onUpdateStateChanged(${state.toJsonString()});")
+                }
             }
         }
     }
@@ -124,6 +138,9 @@ class ActivityEventHandler(
             }
             ActivityEvent.SelectServer -> {
                 mainViewModel.resetServer()
+            }
+            ActivityEvent.RequestUpdateDialog -> {
+                UpdateDialogFragment.show(supportFragmentManager)
             }
             ActivityEvent.ExitApp -> {
                 if (serviceBinder?.isPlaying == true) {

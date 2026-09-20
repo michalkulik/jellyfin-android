@@ -13,7 +13,8 @@ const features = [
     "physicalvolumecontrol",
     "remotecontrol",
     "subtitleappearancesettings",
-    "subtitleburnsettings"
+    "subtitleburnsettings",
+    "updatecheck"
 ];
 
 const plugins = [
@@ -87,6 +88,32 @@ window.NativeShell = {
 
     onDownloadStateChanged() {
         window.dispatchEvent(new Event('downloadstatechange'));
+    },
+
+    /**
+     * Opens the native update prompt. Used by the update entry in the profile menu and by the
+     * update button in the dashboard.
+     */
+    openUpdateDialog() {
+        window.NativeInterface.openUpdateDialog();
+    },
+
+    /**
+     * Returns the state of the in-app updater, for example
+     * { state: 'available', version: '0.3.8', versionCode: 30899, progress: 0 }.
+     * State values: unknown, checking, uptodate, available, downloading, downloaded, failed.
+     */
+    getUpdateState() {
+        try {
+            return JSON.parse(window.NativeInterface.getUpdateState());
+        } catch (err) {
+            console.error('Failed to read the update state', err);
+            return { state: 'unknown' };
+        }
+    },
+
+    onUpdateStateChanged(state) {
+        window.dispatchEvent(new CustomEvent('updatestatechange', { detail: state }));
     },
 
     openClientSettings() {

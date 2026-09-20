@@ -30,6 +30,13 @@ object Constants {
     const val FRAGMENT_WEB_VIEW_EXTRA_SERVER = "org.jellyfin.mobile.intent.extra.SERVER"
     const val EXTRA_OPEN_DOWNLOADS = "org.jellyfin.mobile.intent.extra.OPEN_DOWNLOADS"
 
+    // Update constants
+    /** Releases of the fork, the newest one is reachable through [UPDATE_LATEST_RELEASES_URL]. */
+    const val UPDATE_RELEASES_URL = "https://github.com/michalkulik/jellyfin-android/releases"
+
+    /** Manifest asset attached to every release that describes the downloadable artifacts. */
+    const val UPDATE_MANIFEST_FILE = "latest.json"
+
     // Preference keys
     const val PREF_SERVER_ID = "pref_server_id"
     const val PREF_USER_ID = "pref_user_id"
@@ -37,6 +44,10 @@ object Constants {
     const val PREF_IGNORE_BATTERY_OPTIMIZATIONS = "pref_ignore_battery_optimizations"
     const val PREF_IGNORE_WEBVIEW_CHECKS = "pref_ignore_webview_checks"
     const val PREF_IGNORE_BLUETOOTH_PERMISSION = "pref_ignore_bluetooth_permission"
+    const val PREF_UPDATE_LAST_CHECK = "pref_update_last_check"
+    const val PREF_UPDATE_SNOOZE_UNTIL = "pref_update_snooze_until"
+    const val PREF_UPDATE_SNOOZED_VERSION_CODE = "pref_update_snoozed_version_code"
+    const val PREF_UPDATE_MANIFEST_URL = "pref_update_manifest_url"
     const val PREF_DOWNLOAD_METHOD = "pref_download_method"
     const val PREF_MUSIC_NOTIFICATION_ALWAYS_DISMISSIBLE = "pref_music_notification_always_dismissible"
     const val PREF_VIDEO_PLAYER_TYPE = "pref_video_player_type"

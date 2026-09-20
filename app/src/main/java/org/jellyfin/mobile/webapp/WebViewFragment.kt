@@ -35,6 +35,8 @@ import org.jellyfin.mobile.databinding.FragmentWebviewBinding
 import org.jellyfin.mobile.events.ActivityEvent
 import org.jellyfin.mobile.events.ActivityEventHandler
 import org.jellyfin.mobile.setup.ConnectFragment
+import org.jellyfin.mobile.update.UpdateDialogFragment
+import org.jellyfin.mobile.update.UpdateManager
 import org.jellyfin.mobile.utils.AndroidVersion
 import org.jellyfin.mobile.utils.BackPressInterceptor
 import org.jellyfin.mobile.utils.Constants
@@ -63,6 +65,7 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
     private lateinit var externalPlayer: ExternalPlayer
     private val mediaSegments: MediaSegments by inject()
     private val activityEventHandler: ActivityEventHandler by inject()
+    private val updateManager: UpdateManager by inject()
 
     lateinit var server: ServerEntity
         private set
@@ -112,6 +115,7 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
                     webView.fadeIn()
                 }
                 requestNoBatteryOptimizations(webViewBinding.root)
+                promptForUpdateIfAvailable()
             }
 
             override fun onErrorReceived() {
@@ -313,6 +317,20 @@ class WebViewFragment : Fragment(), BackPressInterceptor, JellyfinWebChromeClien
     private fun handleError(noNetwork: Boolean = false, weakConnection: Boolean = false) {
         connected = false
         onSelectServer(error = true, noNetwork = noNetwork, weakConnection = weakConnection)
+    }
+
+    /**
+     * Offers a newer version once the library screen is visible, which is what the user asked for:
+     * the prompt follows the app start instead of interrupting the loading screen.
+     */
+    private fun promptForUpdateIfAvailable() {
+        lifecycleScope.launch {
+            updateManager.check()
+            if (!updateManager.shouldPrompt()) return@launch
+            runOnUiThread {
+                activity?.supportFragmentManager?.let { UpdateDialogFragment.show(it) }
+            }
+        }
     }
 
     override fun onShowFileChooser(intent: Intent, filePathCallback: ValueCallback<Array<Uri>>) {

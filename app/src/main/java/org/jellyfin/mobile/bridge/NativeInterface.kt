@@ -21,6 +21,8 @@ import org.jellyfin.mobile.data.dao.DownloadDao
 import org.jellyfin.mobile.events.ActivityEvent
 import org.jellyfin.mobile.events.ActivityEventHandler
 import org.jellyfin.mobile.player.deviceprofile.DeviceProfileBuilder
+import org.jellyfin.mobile.update.UpdateManager
+import org.jellyfin.mobile.update.toJsonString
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.mobile.utils.Constants.EXTRA_ALBUM
 import org.jellyfin.mobile.utils.Constants.EXTRA_ARTIST
@@ -51,6 +53,7 @@ class NativeInterface(private val context: Context) : KoinComponent {
     private val remoteVolumeProvider: RemoteVolumeProvider by inject()
     private val deviceProfileBuilder: DeviceProfileBuilder by inject()
     private val downloadDao: DownloadDao = get()
+    private val updateManager: UpdateManager = get()
 
     @SuppressLint("HardwareIds")
     @JavascriptInterface
@@ -193,6 +196,24 @@ class NativeInterface(private val context: Context) : KoinComponent {
     @JavascriptInterface
     fun openClientSettings() {
         emitEvent(ActivityEvent.OpenSettings)
+    }
+
+    /**
+     * Returns the state of the in-app updater as a JSON object, for example
+     * { "state": "available", "version": "0.3.8", "versionCode": 30899, "progress": 0 }.
+     * State values: unknown, checking, uptodate, available, downloading, downloaded, failed.
+     */
+    @JavascriptInterface
+    fun getUpdateState(): String = updateManager.state.value.toJsonString()
+
+    /**
+     * Opens the update prompt, used by the update entry in the profile menu and the button in the
+     * dashboard of the web based user interface.
+     */
+    @JavascriptInterface
+    fun openUpdateDialog(): Boolean {
+        emitEvent(ActivityEvent.RequestUpdateDialog)
+        return true
     }
 
     @JavascriptInterface

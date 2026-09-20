@@ -56,6 +56,36 @@ class AppPreferences(context: Context) {
             }
         }
 
+    /** When the update manifest was last fetched, used to throttle the checks. */
+    var updateLastCheck: Long
+        get() = sharedPreferences.getLong(Constants.PREF_UPDATE_LAST_CHECK, 0L)
+        set(value) = sharedPreferences.edit { putLong(Constants.PREF_UPDATE_LAST_CHECK, value) }
+
+    /** Timestamp until the new version prompt stays hidden after the user chose "later". */
+    var updateSnoozeUntil: Long
+        get() = sharedPreferences.getLong(Constants.PREF_UPDATE_SNOOZE_UNTIL, 0L)
+        set(value) = sharedPreferences.edit { putLong(Constants.PREF_UPDATE_SNOOZE_UNTIL, value) }
+
+    /**
+     * The version that was postponed. A newer version is offered again immediately, even while the
+     * snooze time has not passed yet.
+     */
+    var updateSnoozedVersionCode: Int
+        get() = sharedPreferences.getInt(Constants.PREF_UPDATE_SNOOZED_VERSION_CODE, 0)
+        set(value) = sharedPreferences.edit { putInt(Constants.PREF_UPDATE_SNOOZED_VERSION_CODE, value) }
+
+    /**
+     * Overrides the update manifest location, only used to test the updater against a local
+     * manifest. Null means the releases of the fork.
+     */
+    var updateManifestUrl: String?
+        get() = sharedPreferences.getString(Constants.PREF_UPDATE_MANIFEST_URL, null)
+        set(value) {
+            sharedPreferences.edit {
+                if (value == null) remove(Constants.PREF_UPDATE_MANIFEST_URL) else putString(Constants.PREF_UPDATE_MANIFEST_URL, value)
+            }
+        }
+
     var downloadMethod: DownloadMethod
         get() = DownloadMethod.fromInt(sharedPreferences.getInt(Constants.PREF_DOWNLOAD_METHOD, -1)) ?: DownloadMethod.DEFAULT
         set(value) {

@@ -43,6 +43,9 @@ import org.jellyfin.mobile.player.qualityoptions.QualityOptionsProvider
 import org.jellyfin.mobile.player.source.MediaSourceResolver
 import org.jellyfin.mobile.player.ui.PlayerFragment
 import org.jellyfin.mobile.setup.ConnectionHelper
+import org.jellyfin.mobile.update.UpdateClient
+import org.jellyfin.mobile.update.UpdateManager
+import org.jellyfin.mobile.update.UpdateNotificationManager
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.mobile.utils.PermissionRequestHelper
 import org.jellyfin.mobile.utils.extractId
@@ -76,7 +79,7 @@ val applicationModule = module {
     single { ApiClientController(get(), get(), get(), get(), get()) }
 
     // Event handlers and channels
-    single { ActivityEventHandler(get(), get()) }
+    single { ActivityEventHandler(get(), get(), get()) }
     single { WebappFunctionChannel() }
 
     // Bridge interfaces
@@ -188,4 +191,9 @@ val applicationModule = module {
     single { DownloadJobClient(get()) }
     single { DownloadQueue(get(), get(), get(), get(), get(), get(), get()) }
     single { FileDownloader(get()) }
+
+    // In-app updater
+    single { UpdateClient(get()) }
+    single { UpdateNotificationManager(get()) }
+    single(createdAtStart = true) { UpdateManager(androidApplication(), get(), get(), get()) }
 }
