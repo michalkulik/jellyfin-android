@@ -216,6 +216,16 @@ class NativeInterface(private val context: Context) : KoinComponent {
         return true
     }
 
+    /**
+     * Runs a manual update check, used by the dashboard button. Nothing is shown when the installed
+     * version is current, the prompt only follows when there is something to install.
+     */
+    @JavascriptInterface
+    fun checkForUpdates(): Boolean {
+        emitEvent(ActivityEvent.CheckForUpdates)
+        return true
+    }
+
     @JavascriptInterface
     fun openServerSelection() {
         emitEvent(ActivityEvent.SelectServer)

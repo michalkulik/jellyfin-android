@@ -74,15 +74,18 @@ class UpdateManager(
      *
      * @param force when false the last check must be older than [CHECK_MAX_AGE_MS], which keeps the
      *   repeated calls (app start, every return to the library screen) from hammering the manifest.
+     * @param ignoreThrottle skips the in-process guard as well, used when the user asked explicitly.
      */
     @Suppress("CyclomaticComplexMethod")
-    suspend fun check(force: Boolean = false): UpdateState {
+    suspend fun check(force: Boolean = false, ignoreThrottle: Boolean = false): UpdateState {
         val now = System.currentTimeMillis()
 
-        // The app start check and the check after connecting to the webapp can happen seconds
-        // apart, this keeps them from both hitting the network.
-        if (force && now - lastCheckAt < CHECK_MIN_INTERVAL_MS) return state.value
-        if (!force && now - appPreferences.updateLastCheck < CHECK_MAX_AGE_MS) return state.value
+        if (!ignoreThrottle) {
+            // The app start check and the check after connecting to the webapp can happen seconds
+            // apart, this keeps them from both hitting the network.
+            if (force && now - lastCheckAt < CHECK_MIN_INTERVAL_MS) return state.value
+            if (!force && now - appPreferences.updateLastCheck < CHECK_MAX_AGE_MS) return state.value
+        }
 
         val manifestUrl = appPreferences.updateManifestUrl ?: UpdateClient.DEFAULT_MANIFEST_URL
 
@@ -117,6 +120,17 @@ class UpdateManager(
 
             nextState.also { _state.value = it }
         }
+    }
+
+    /**
+     * Manual check started by the user, for example from the dashboard.
+     *
+     * Neither the throttles nor the snooze apply here, because the user asked for the check. Returns
+     * the newer release, or null when the installed version is current.
+     */
+    suspend fun checkManually(): UpdateRelease? {
+        check(force = true, ignoreThrottle = true)
+        return (state.value as? UpdateState.Available)?.release
     }
 
     /**

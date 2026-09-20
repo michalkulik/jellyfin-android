@@ -7,10 +7,13 @@ Design and implementation notes for updating the Android app from inside the app
 - Detect a newer app version and tell the user about it:
   - a popup right after the library screen is loaded,
   - an `Update` entry in the profile menu (above `Profile`),
-  - a button in the dashboard next to `Scan all libraries`.
+  - a button in the dashboard next to `Scan all libraries`, which doubles as a manual check:
+    `Check for updates` when nothing is known and `Update` once a newer version is available.
 - The popup shows the new version (and release notes) with `Install` / `Later`.
 - `Install` downloads the APK with a progress bar and then hands it to the system installer.
 - `Later` suppresses the popup for 24 hours, but a *newer* release shows again immediately.
+- A manual check from the dashboard ignores both the throttles and the snooze; it stays silent when
+  the installed version is current.
 
 ## Where releases live
 
@@ -92,8 +95,8 @@ sequenceDiagram
 | `update/UpdateInstaller.kt` | unknown-sources permission + install intent via `FileProvider` |
 | `update/UpdatePackageReplacedReceiver.kt` | removes the package after a successful update |
 | `update/UpdateDialogFragment.kt` + `res/layout/dialog_update.xml` | the prompt, its progress bar and buttons |
-| `bridge/NativeInterface.kt` | `getUpdateState()`, `openUpdateDialog()` |
-| `events/ActivityEvent.kt` | `RequestUpdateDialog` |
+| `bridge/NativeInterface.kt` | `getUpdateState()`, `openUpdateDialog()`, `checkForUpdates()` |
+| `events/ActivityEvent.kt` | `RequestUpdateDialog`, `CheckForUpdates` |
 | `assets/native/nativeshell.js` | `updatecheck` feature, `window.NativeShell.*` update methods |
 | `JellyfinApplication.kt` | fire-and-forget check on start, cleanup of old packages |
 | `AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES`, `FileProvider`, installer `<queries>` |
@@ -112,9 +115,9 @@ only the installer intent is not launched and a toast explains why.
 | `src/constants/appFeature.ts` | `AppFeature.Update = 'updatecheck'` |
 | `src/scripts/shell.js` | `openUpdateDialog()` |
 | `src/scripts/updateState.js` | `getUpdateState()` + `updatestatechange` listener |
-| `src/apps/dashboard/components/widgets/ServerInfoWidget.tsx` | `Update` button next to `Scan all libraries` |
-| `src/apps/dashboard/routes/index.tsx` | handler for that button |
-| `src/strings/*.json` | `ButtonUpdate`, `UpdateAvailable`, ... |
+| `src/apps/dashboard/components/widgets/ServerInfoWidget.tsx` | update/check button next to `Scan all libraries` |
+| `src/apps/dashboard/routes/index.tsx` | handler for that button, gates it on the `updatecheck` feature |
+| `src/strings/*.json` | `ButtonUpdate`, `ButtonCheckForUpdates`, `Update`, ... |
 
 The app loads the web client from the server, so these need a web deploy; the native feature gate
 (`appHost.supports('updatecheck')`) keeps old web builds working with a new app and vice versa.
@@ -124,6 +127,8 @@ The app loads the web client from the server, so these need a web deploy; the na
 - Checks run at app start and when the library screen appears, throttled to once per 6 hours unless forced.
 - `Later` stores the version code and a timestamp. The popup returns after 24 hours, or immediately when
   a version newer than the snoozed one appears.
+- The dashboard button runs a manual check on demand, which skips the throttles and the snooze and only
+  shows the prompt when a newer version exists.
 - "Newest version" comes from the `/releases/latest/` URL, so no release number is hardcoded in the app.
 
 ## Security

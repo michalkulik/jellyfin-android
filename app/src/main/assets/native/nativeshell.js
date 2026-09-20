@@ -99,6 +99,14 @@ window.NativeShell = {
     },
 
     /**
+     * Asks the native side to check for updates. Nothing is shown when the installed version is
+     * current, the prompt only follows when there is something to install.
+     */
+    checkForUpdates() {
+        window.NativeInterface.checkForUpdates();
+    },
+
+    /**
      * Returns the state of the in-app updater, for example
      * { state: 'available', version: '0.3.8', versionCode: 30899, progress: 0 }.
      * State values: unknown, checking, uptodate, available, downloading, downloaded, failed.
