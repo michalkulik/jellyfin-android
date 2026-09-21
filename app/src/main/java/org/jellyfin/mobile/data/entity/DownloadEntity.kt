@@ -7,6 +7,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import org.jellyfin.mobile.R
+import org.jellyfin.mobile.downloads.DownloadPlaybackState
 import org.jellyfin.mobile.downloads.DownloadStatus
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -58,9 +59,21 @@ data class DownloadEntity(
 
     @ColumnInfo(name = "status") val status: DownloadStatus = DownloadStatus.QUEUED,
 
+    /** Position where playback stopped, used to continue the item later. Kept even when watched. */
+    @ColumnInfo(name = "position_ticks", defaultValue = "0") val positionTicks: Long = 0L,
+
+    /** Whether the item was watched to the end. */
+    @ColumnInfo(name = "played", defaultValue = "0") val played: Boolean = false,
+
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "modified_at") var modifiedAt: Long = System.currentTimeMillis(),
 ) {
+    /**
+     * Position playback should resume from, or null when the item should start from the beginning.
+     */
+    val resumePositionTicks: Long?
+        get() = DownloadPlaybackState.resumePositionTicks(positionTicks, played)
+
     fun getDisplayName(context: Context) = buildString {
         val name = if (
             item.type in arrayOf(BaseItemKind.PROGRAM, BaseItemKind.RECORDING) &&

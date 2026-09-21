@@ -1,5 +1,6 @@
 package org.jellyfin.mobile.ui.screens.downloads
 
+import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
@@ -22,7 +23,9 @@ import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -30,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -47,6 +51,7 @@ import org.jellyfin.mobile.data.entity.DownloadFiles
 import org.jellyfin.mobile.downloads.DownloadFileType
 import org.jellyfin.mobile.downloads.DownloadStatus
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.extensions.ticks
 import org.koin.compose.koinInject
 
 @Composable
@@ -243,6 +248,8 @@ fun DownloadItem(
                     style = MaterialTheme.typography.caption,
                 )
             }
+
+            DownloadPlaybackStatus(download)
         }
 
         if (isActive) {
@@ -256,6 +263,58 @@ fun DownloadItem(
                 )
             }
         }
+    }
+}
+
+/**
+ * Shows whether the item was already watched or where it will continue.
+ *
+ * The position is remembered for downloaded items just like it is for items played from the server,
+ * so a paused episode can be resumed and a watched one is marked as such.
+ */
+@Composable
+private fun DownloadPlaybackStatus(download: DownloadEntity) {
+    val resumePositionTicks = download.resumePositionTicks
+
+    when {
+        download.played -> DownloadPlaybackStatusLine(
+            icon = Icons.Outlined.CheckCircle,
+            text = stringResource(R.string.download_watched),
+        )
+
+        resumePositionTicks != null -> DownloadPlaybackStatusLine(
+            icon = Icons.Outlined.PlayArrow,
+            text = stringResource(
+                R.string.download_resume_from,
+                DateUtils.formatElapsedTime(resumePositionTicks.ticks.inWholeSeconds),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun DownloadPlaybackStatusLine(
+    icon: ImageVector,
+    text: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 2.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colors.primary,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(
+            text = text,
+            color = MaterialTheme.colors.primary,
+            overflow = TextOverflow.Ellipsis,
+            maxLines = 1,
+            style = MaterialTheme.typography.caption,
+            modifier = Modifier.padding(start = 4.dp),
+        )
     }
 }
 

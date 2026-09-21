@@ -19,6 +19,7 @@ import org.jellyfin.mobile.events.ActivityEvent
 import org.jellyfin.mobile.events.ActivityEventHandler
 import org.jellyfin.mobile.player.interaction.PlayOptions
 import org.jellyfin.sdk.model.api.MediaType
+import org.jellyfin.sdk.model.extensions.ticks
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -79,6 +80,9 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
      * For episodes the queue contains every downloaded episode of the same series, ordered by
      * season and episode number, so playback can continue with the next downloaded episode. The
      * tapped episode is the starting point of the queue.
+     *
+     * Playback continues where the item stopped before. An item that was watched to the end starts
+     * over, but its stored position is kept so watching it again updates the position.
      */
     private suspend fun buildVideoPlayOptions(download: DownloadEntity): PlayOptions {
         val queue = DownloadPlaybackQueue.build(download, downloadDao.getAllDownloadsOnce())
@@ -87,7 +91,7 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
             ids = queue,
             mediaSourceId = download.itemId.toString(),
             startIndex = queue.indexOf(download.itemId).coerceAtLeast(0),
-            startPosition = null,
+            startPosition = download.resumePositionTicks?.ticks,
             audioStreamIndex = null,
             subtitleStreamIndex = null,
             playFromDownloads = true,

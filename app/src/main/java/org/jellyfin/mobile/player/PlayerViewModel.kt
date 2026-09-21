@@ -40,6 +40,7 @@ import org.jellyfin.mobile.BuildConfig
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.app.PLAYER_EVENT_CHANNEL
+import org.jellyfin.mobile.downloads.DownloadPlaybackTracker
 import org.jellyfin.mobile.player.interaction.PlayerEvent
 import org.jellyfin.mobile.player.interaction.PlayerLifecycleObserver
 import org.jellyfin.mobile.player.interaction.PlayerMediaSessionCallback
@@ -106,6 +107,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     private val userApi: UserApi = apiClient.userApi
 
     private val appPreferences: AppPreferences by inject()
+    private val downloadPlaybackTracker: DownloadPlaybackTracker by inject()
     private val lifecycleObserver = PlayerLifecycleObserver(this)
     private val audioManager: AudioManager by lazy { getApplication<Application>().getSystemService()!! }
     val notificationHelper: PlayerNotificationHelper by lazy { PlayerNotificationHelper(this) }
@@ -330,7 +332,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     }
 
     private fun startProgressUpdates() {
-        if (mediaSourceOrNull != null && mediaSourceOrNull !is RemoteJellyfinMediaSource) return
+        // Downloaded items are tracked here as well, so their position is remembered for later.
         progressUpdateJob = viewModelScope.launch {
             while (true) {
                 delay(Constants.PLAYER_TIME_UPDATE_RATE)
@@ -441,47 +443,62 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     }
 
     private suspend fun Player.reportPlaybackState() {
-        val mediaSource = mediaSourceOrNull as? RemoteJellyfinMediaSource ?: return
-        val playbackPosition = currentPosition.milliseconds
-        if (playbackState != Player.STATE_ENDED) {
-            val stream = AudioManager.STREAM_MUSIC
-            val volumeRange = audioManager.getVolumeRange(stream)
-            val currentVolume = audioManager.getStreamVolume(stream)
-            val isPaused = !isPlaying
-            try {
-                withContext(Dispatchers.IO) {
-                    playStateApi.reportPlaybackProgress(
-                        PlaybackProgressInfo(
-                            itemId = mediaSource.itemId,
-                            playMethod = mediaSource.playMethod,
-                            playSessionId = mediaSource.playSessionId,
-                            liveStreamId = mediaSource.liveStreamId,
-                            audioStreamIndex = mediaSource.selectedAudioStream?.index,
-                            subtitleStreamIndex = mediaSource.selectedSubtitleStream?.index,
-                            isPaused = isPaused,
-                            isMuted = false,
-                            canSeek = true,
-                            positionTicks = playbackPosition.inWholeTicks,
-                            volumeLevel = (currentVolume - volumeRange.first) * Constants.PERCENT_MAX / volumeRange.width,
-                            repeatMode = RepeatMode.REPEAT_NONE,
-                            playbackOrder = PlaybackOrder.DEFAULT,
-                        ),
-                    )
+        val positionTicks = currentPosition.milliseconds.inWholeTicks
+        // The end of an item is stored by reportPlaybackStop() together with the watched state.
+        if (playbackState == Player.STATE_ENDED) return
+
+        when (val mediaSource = mediaSourceOrNull) {
+            is RemoteJellyfinMediaSource -> {
+                val stream = AudioManager.STREAM_MUSIC
+                val volumeRange = audioManager.getVolumeRange(stream)
+                val currentVolume = audioManager.getStreamVolume(stream)
+                val isPaused = !isPlaying
+                try {
+                    withContext(Dispatchers.IO) {
+                        playStateApi.reportPlaybackProgress(
+                            PlaybackProgressInfo(
+                                itemId = mediaSource.itemId,
+                                playMethod = mediaSource.playMethod,
+                                playSessionId = mediaSource.playSessionId,
+                                liveStreamId = mediaSource.liveStreamId,
+                                audioStreamIndex = mediaSource.selectedAudioStream?.index,
+                                subtitleStreamIndex = mediaSource.selectedSubtitleStream?.index,
+                                isPaused = isPaused,
+                                isMuted = false,
+                                canSeek = true,
+                                positionTicks = positionTicks,
+                                volumeLevel = (currentVolume - volumeRange.first) * Constants.PERCENT_MAX / volumeRange.width,
+                                repeatMode = RepeatMode.REPEAT_NONE,
+                                playbackOrder = PlaybackOrder.DEFAULT,
+                            ),
+                        )
+                    }
+                } catch (e: ApiClientException) {
+                    Timber.e(e, "Failed to report playback progress")
                 }
-            } catch (e: ApiClientException) {
-                Timber.e(e, "Failed to report playback progress")
             }
+            // Downloaded playback is kept on the device, so it can be continued without a network.
+            is LocalJellyfinMediaSource -> downloadPlaybackTracker.onProgress(mediaSource, positionTicks)
+            null -> Unit
         }
     }
 
     private fun reportPlaybackStop() {
-        val mediaSource = mediaSourceOrNull as? RemoteJellyfinMediaSource ?: return
         val player = playerOrNull ?: return
+        val mediaSource = mediaSourceOrNull ?: return
         val hasFinished = player.playbackState == Player.STATE_ENDED
         val lastPositionTicks = when {
             hasFinished -> mediaSource.runTime.inWholeTicks
             else -> player.currentPosition.milliseconds.inWholeTicks
         }
+
+        if (mediaSource is LocalJellyfinMediaSource) {
+            // The position of a downloaded item is stored on the device, so it survives without a network.
+            downloadPlaybackTracker.onStopped(mediaSource, lastPositionTicks, hasFinished)
+            return
+        }
+
+        val remoteMediaSource = mediaSource as? RemoteJellyfinMediaSource ?: return
 
         // viewModelScope may already be cancelled at this point, so we need to fallback
         CoroutineScope(Dispatchers.Main).launch {
@@ -490,10 +507,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
                 withContext(Dispatchers.IO) {
                     playStateApi.reportPlaybackStopped(
                         PlaybackStopInfo(
-                            itemId = mediaSource.itemId,
+                            itemId = remoteMediaSource.itemId,
                             positionTicks = lastPositionTicks,
-                            playSessionId = mediaSource.playSessionId,
-                            liveStreamId = mediaSource.liveStreamId,
+                            playSessionId = remoteMediaSource.playSessionId,
+                            liveStreamId = remoteMediaSource.liveStreamId,
                             failed = false,
                         ),
                     )
@@ -502,12 +519,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
                 // Mark video as watched if playback finished
                 if (hasFinished) {
                     withContext(Dispatchers.IO) {
-                        playStateApi.markPlayedItem(itemId = mediaSource.itemId)
+                        playStateApi.markPlayedItem(itemId = remoteMediaSource.itemId)
                     }
                 }
 
                 // Stop active encoding if transcoding
-                stopTranscoding(mediaSource)
+                stopTranscoding(remoteMediaSource)
             } catch (e: ApiClientException) {
                 Timber.e(e, "Failed to report playback stop")
             }

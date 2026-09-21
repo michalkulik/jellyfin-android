@@ -103,6 +103,9 @@ class QueueManager(
             true -> playOptions.mediaSourceId?.let {
                 startDownloadPlayback(
                     itemId = itemId,
+                    startTime = playOptions.startPosition,
+                    audioStreamIndex = playOptions.audioStreamIndex,
+                    subtitleStreamIndex = playOptions.subtitleStreamIndex,
                     playWhenReady = playWhenReady,
                 )
             }

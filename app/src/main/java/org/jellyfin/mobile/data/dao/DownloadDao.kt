@@ -59,6 +59,17 @@ interface DownloadDao {
     @Query("UPDATE download SET progress = :progress, modified_at = :modifiedAt WHERE id = :id")
     suspend fun updateProgress(id: Long, progress: Int, modifiedAt: Long = System.currentTimeMillis())
 
+    /**
+     * Stores where the playback of a downloaded item stopped, so it can be continued later.
+     */
+    @Query("UPDATE download SET position_ticks = :positionTicks, played = :played, modified_at = :modifiedAt WHERE item_id = :itemId")
+    suspend fun updatePlaybackState(
+        itemId: UUID,
+        positionTicks: Long,
+        played: Boolean,
+        modifiedAt: Long = System.currentTimeMillis(),
+    )
+
     @Query("UPDATE download SET status = :status, job_id = :jobId, progress = :progress, modified_at = :modifiedAt WHERE id = :id")
     suspend fun updatePhase(
         id: Long,

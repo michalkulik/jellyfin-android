@@ -34,6 +34,21 @@ class DownloadManager(
         private const val ITEMS_BATCH = 25
     }
 
+    /**
+     * Remembers where the playback of a downloaded item stopped, so it can be continued later.
+     *
+     * The position is stored even when the item was watched to the end, so watching it again replaces
+     * it with the new position.
+     */
+    suspend fun updatePlaybackState(itemId: UUID, positionTicks: Long, played: Boolean) =
+        withContext(Dispatchers.IO) {
+            downloadDao.updatePlaybackState(
+                itemId = itemId,
+                positionTicks = positionTicks.coerceAtLeast(0L),
+                played = played,
+            )
+        }
+
     suspend fun enqueueItems(
         server: ServerEntity,
         user: UserEntity,
