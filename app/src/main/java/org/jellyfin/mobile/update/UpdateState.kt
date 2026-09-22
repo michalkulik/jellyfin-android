@@ -36,4 +36,18 @@ sealed interface UpdateState {
             is Failed -> release
             else -> null
         }
+
+    /**
+     * The release a download request should use: the one that is on offer, or the one a failed
+     * download was working on, so retrying does not need another manifest request.
+     *
+     * A download that is already running or finished is deliberately excluded, asking for it again
+     * would restart or repeat work that is already done.
+     */
+    val downloadableRelease: UpdateRelease?
+        get() = when (this) {
+            is Available -> release
+            is Failed -> release
+            else -> null
+        }
 }

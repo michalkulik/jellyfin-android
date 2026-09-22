@@ -154,10 +154,23 @@ class UpdateManager(
 
     /**
      * Starts downloading the available release. The progress is reported through [state].
+     *
+     * A failed download can be retried, the release it was working on is still known at that point.
+     * When it is not (the failure happened before the release was resolved) a fresh check runs
+     * instead and continues straight into the download, so the retry is never a dead end.
      */
     fun download() {
-        val release = (state.value as? UpdateState.Available)?.release ?: return
-        coroutineScope.launch { UpdateDownloadWorker.start(context, release) }
+        val release = state.value.downloadableRelease
+
+        if (release != null) {
+            coroutineScope.launch { UpdateDownloadWorker.start(context, release) }
+            return
+        }
+
+        coroutineScope.launch {
+            val checked = check(force = true, ignoreThrottle = true)
+            (checked as? UpdateState.Available)?.release?.let { UpdateDownloadWorker.start(context, it) }
+        }
     }
 
     /**
