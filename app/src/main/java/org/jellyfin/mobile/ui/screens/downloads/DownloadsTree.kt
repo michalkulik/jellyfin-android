@@ -113,3 +113,15 @@ fun DownloadsFolder?.downloadIds(downloads: List<DownloadFiles>): List<Long> {
 
     return visible.map { it.download.id }
 }
+
+/**
+ * The folder one level above this one, so leaving a season returns to its series and leaving a
+ * series returns to the root. Null means the root.
+ */
+fun DownloadsFolder?.parent(downloads: List<DownloadFiles>): DownloadsFolder? = when (this) {
+    null, is DownloadsFolder.Series -> null
+    is DownloadsFolder.Season -> DownloadsTree.build(downloads)
+        .series
+        .firstOrNull { it.key == seriesKey }
+        ?.let { DownloadsFolder.Series(it.key, it.name) }
+}

@@ -71,6 +71,15 @@ fun DownloadsScreen(
     val selectionMode = selection.isNotEmpty()
     val visibleIds = remember(folder, downloads) { folder.downloadIds(downloads) }
 
+    // Leaves the folder one level up (season -> its series -> root) instead of jumping to the root.
+    val goUp = {
+        if (folder == null) {
+            onBackPressed()
+        } else {
+            folder = folder.parent(downloads)
+        }
+    }
+
     val storageLocationPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) viewModel.changeStorageLocation(uri)
     }
@@ -80,13 +89,13 @@ fun DownloadsScreen(
         if (selectionMode) {
             selection.clear()
         } else {
-            folder = null
+            folder = folder.parent(downloads)
         }
     }
 
     // Leave a folder that no longer has any download, for example after removing all its episodes.
     LaunchedEffect(folder, downloads) {
-        if (folder != null && visibleIds.isEmpty()) folder = null
+        if (folder != null && visibleIds.isEmpty()) folder = folder.parent(downloads)
     }
 
     if (showDeleteConfirm) {
@@ -151,7 +160,7 @@ fun DownloadsScreen(
                             }
                         } else {
                             IconButton(
-                                onClick = { if (folder != null) folder = null else onBackPressed() },
+                                onClick = goUp,
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,

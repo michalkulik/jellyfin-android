@@ -4,7 +4,9 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.jellyfin.mobile.data.entity.DownloadEntity
 import org.jellyfin.mobile.data.entity.DownloadFiles
+import org.jellyfin.mobile.ui.screens.downloads.DownloadsFolder
 import org.jellyfin.mobile.ui.screens.downloads.DownloadsTree
+import org.jellyfin.mobile.ui.screens.downloads.parent
 import org.jellyfin.sdk.model.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -153,5 +155,27 @@ class DownloadsTreeTest {
         val seasons = tree.series.single().seasons
         seasons.size shouldBe 1
         seasons.single().downloads.size shouldBe 2
+    }
+
+    @Test
+    fun `leaving a season goes back to its series and leaving a series goes to the root`() {
+        val downloads = listOf(
+            episode("00000000-0000-0000-0000-000000000001", "Pa, pa", BING_ID, "Bing", BING_SEASON_1, 1, 2),
+        )
+
+        val root = null
+        val series = DownloadsFolder.Series(BING_ID.toString(), "Bing")
+        val season = DownloadsFolder.Season(BING_ID.toString(), BING_SEASON_1.toString(), "Sezon 1")
+
+        season.parent(downloads) shouldBe series
+        series.parent(downloads) shouldBe root
+        root.parent(downloads) shouldBe null
+    }
+
+    @Test
+    fun `leaving a season falls back to the root when its series is gone`() {
+        val season = DownloadsFolder.Season("missing", BING_SEASON_1.toString(), "Sezon 1")
+
+        season.parent(emptyList()) shouldBe null
     }
 }
