@@ -113,6 +113,24 @@ class DownloadManager(
     }
 
     /**
+     * Starts the download worker when a finished download is still missing the artwork of its
+     * series or season, so the posters appear without the user having to download something again.
+     */
+    suspend fun ensureArtwork() = withContext(Dispatchers.IO) {
+        val missing = downloadDao.getAllDownloadsOnce().any { download ->
+            download.status == DownloadStatus.DOWNLOADED &&
+                listOfNotNull(
+                    DownloadArtwork.seriesArtwork(context, download.item),
+                    DownloadArtwork.seasonArtwork(context, download.item),
+                ).any { !it.isPresent }
+        }
+
+        if (missing && !DownloadWorker.isActive(context)) {
+            DownloadWorker.start(context, appPreferences)
+        }
+    }
+
+    /**
      * Estimates the download size of the given items for every quality preset, so the user can see
      * how much disk space a download will take before starting it.
      */

@@ -208,6 +208,15 @@
     <string name="download_location_inaccessible_description">The selected download location is no longer accessible. Please select a different folder to resume downloads.</string>
     <string name="download_watched">Watched</string>
     <string name="download_resume_from">Resume from %1$s</string>
+    <string name="download_season_name">Season %1$d</string>
+    <plurals name="download_season_count">
+        <item quantity="one">%1$d season</item>
+        <item quantity="other">%1$d seasons</item>
+    </plurals>
+    <plurals name="download_episode_count">
+        <item quantity="one">%1$d episode</item>
+        <item quantity="other">%1$d episodes</item>
+    </plurals>
 
     <!-- In-app update -->
     <string name="update_available_title">New app version</string>

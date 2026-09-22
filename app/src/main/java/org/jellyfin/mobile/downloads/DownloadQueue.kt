@@ -15,6 +15,7 @@ import org.jellyfin.mobile.data.entity.DownloadFileEntity
 import org.jellyfin.mobile.data.entity.DownloadFiles
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
+import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ImageFormat
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.MediaStreamType
@@ -40,6 +41,9 @@ class DownloadQueue(
     private val _downloader = FileDownloader(okHttpClient)
     private val _downloads = mutableListOf<DownloadFiles>()
 
+    /** Finished downloads whose group artwork still has to be fetched. */
+    private val _artworkDownloads = mutableListOf<DownloadEntity>()
+
     /**
      * Downloads that failed (or were cancelled) during this worker run. They are skipped when the
      * queue is refetched so one broken item cannot block the remaining downloads; they are retried
@@ -52,6 +56,30 @@ class DownloadQueue(
         _downloads.clear()
         _downloads.addAll(queuedDownloads.filterNot { it.download.id in _skipped })
         return _downloads.any()
+    }
+
+    /**
+     * Downloads that were already finished before the group artwork existed, so the series and
+     * season posters of the downloads screen can be filled in without re-downloading the videos.
+     */
+    suspend fun prepareArtwork(): Boolean {
+        _artworkDownloads.clear()
+        _artworkDownloads.addAll(
+            downloadDao.getAllDownloadsOnce().filter { download ->
+                download.status == DownloadStatus.DOWNLOADED && artworkFiles(download.item).any { !it.isPresent }
+            },
+        )
+        return _artworkDownloads.any()
+    }
+
+    suspend fun processArtwork() {
+        for (download in _artworkDownloads) {
+            val api = apiClientController.getApiClient(download.serverId, download.userId)
+            runCatching { downloadArtwork(api, download.item) }
+                .onFailure { err -> Timber.w(err, "Unable to download the group artwork of ${download.item.name}") }
+        }
+
+        _artworkDownloads.clear()
     }
 
     suspend fun process() {
@@ -100,6 +128,10 @@ class DownloadQueue(
                 ensureNotCancelled(downloadId)
                 download(api, queuedFile, progressCallback)
             }
+
+            // The series and season posters are shared by every episode, so they are fetched once
+            // and stored outside of the item folder.
+            downloadArtwork(api, downloadWithFiles.download.item)
 
             // Subtitles are small and do not depend on the conversion either.
             for (queuedFile in prepareSubtitleFiles(api, downloadWithFiles, itemLocation)) {
@@ -391,6 +423,44 @@ class DownloadQueue(
         )
     }
 
+    /**
+     * Artwork of the groups the item belongs to: the poster of its series and the poster of its
+     * season. Nothing is requested when the file is already there, so every group is fetched once.
+     *
+     * A failure here only means the downloads screen falls back to the item image, so it never
+     * fails the item download itself.
+     */
+    private suspend fun downloadArtwork(api: ApiClient, item: BaseItemDto) {
+        for (artwork in artworkFiles(item)) {
+            if (artwork.isPresent) continue
+
+            val remoteUri = api.imageApi.getItemImageUrl(
+                itemId = artwork.itemId,
+                imageType = ImageType.PRIMARY,
+                tag = artwork.tag,
+                format = ImageFormat.WEBP,
+                maxWidth = ARTWORK_MAX_WIDTH,
+            ).toUri()
+
+            runCatching {
+                artwork.file.parentFile?.mkdirs()
+                // ParcelFileDescriptor.open does not create the file, unlike DocumentFile.createFile.
+                artwork.file.createNewFile()
+                val fileDescriptor = storageManager.openFileDescriptor(artwork.uri)
+                    ?: error("Unable to open ${artwork.file}")
+                fileDescriptor.use { _downloader.downloadAndSave(api, remoteUri, it) }
+            }.onFailure { err ->
+                Timber.w(err, "Unable to download the artwork of ${item.name}")
+                artwork.file.delete()
+            }
+        }
+    }
+
+    private fun artworkFiles(item: BaseItemDto): List<DownloadArtwork.Artwork> = listOfNotNull(
+        DownloadArtwork.seriesArtwork(context, item),
+        DownloadArtwork.seasonArtwork(context, item),
+    )
+
     private suspend fun createOrUpdateFile(
         filter: (DownloadFileEntity) -> Boolean,
         downloadWithFiles: DownloadFiles,
@@ -433,5 +503,8 @@ class DownloadQueue(
     companion object {
         private const val DEFAULT_CONTAINER = "mp4"
         private const val CONVERSION_POLL_INTERVAL_MS = 2_000L
+
+        /** Series and season posters are only shown as a thumbnail, so a small image is enough. */
+        private const val ARTWORK_MAX_WIDTH = 400
     }
 }

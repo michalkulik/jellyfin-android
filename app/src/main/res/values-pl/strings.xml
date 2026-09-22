@@ -200,6 +200,19 @@
     <string name="download_location_inaccessible_description">Wybrana lokalizacja pobierania nie jest już dostępna. Wybierz inny folder, aby wznowić pobieranie.</string>
     <string name="download_watched">Obejrzane</string>
     <string name="download_resume_from">Wznów od %1$s</string>
+    <string name="download_season_name">Sezon %1$d</string>
+    <plurals name="download_season_count">
+        <item quantity="one">%1$d sezon</item>
+        <item quantity="few">%1$d sezony</item>
+        <item quantity="many">%1$d sezonów</item>
+        <item quantity="other">%1$d sezonu</item>
+    </plurals>
+    <plurals name="download_episode_count">
+        <item quantity="one">%1$d odcinek</item>
+        <item quantity="few">%1$d odcinki</item>
+        <item quantity="many">%1$d odcinków</item>
+        <item quantity="other">%1$d odcinka</item>
+    </plurals>
     <string name="pref_exoplayer_direct_play_ass_description">Użyj eksperymentalnego renderowania napisów po stronie klienta, może to nie zawsze działać</string>
 
     <!-- Aktualizacja aplikacji -->

@@ -59,7 +59,9 @@ class DownloadWorker(
     override suspend fun doWork(): Result {
         Timber.i("DownloadWorker started")
         val canProcess = downloadQueue.prepare()
-        if (!canProcess) {
+        // Existing downloads may predate the group artwork, so it is filled in on every run.
+        val canProcessArtwork = downloadQueue.prepareArtwork()
+        if (!canProcess && !canProcessArtwork) {
             Timber.i("DownloadWorker: nothing queued")
             return Result.success()
         }
@@ -67,6 +69,7 @@ class DownloadWorker(
         setForeground(getForegroundInfo())
         return try {
             downloadQueue.process()
+            downloadQueue.processArtwork()
             Timber.i("DownloadWorker finished")
             Result.success()
         } catch (e: CancellationException) {

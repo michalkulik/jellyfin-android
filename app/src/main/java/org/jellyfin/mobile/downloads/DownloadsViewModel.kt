@@ -1,5 +1,6 @@
 package org.jellyfin.mobile.downloads
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
     private val downloadManager: DownloadManager by inject()
     private val activityEventHandler: ActivityEventHandler by inject()
     private val storageManager: StorageManager by inject()
+    private val context: Context by inject()
 
     val downloads: StateFlow<List<DownloadFiles>> = downloadDao
         .getAllDownloadsWithFiles()
@@ -40,6 +42,11 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
 
     private val _storageLocationAccessible = MutableStateFlow(storageManager.isStorageLocationAccessible())
     val storageLocationAccessible = _storageLocationAccessible.asStateFlow()
+
+    init {
+        // Downloads made before the group artwork existed still have to fetch their posters.
+        viewModelScope.launch { downloadManager.ensureArtwork() }
+    }
 
     fun openDownload(download: DownloadEntity) {
         when (download.item.mediaType) {
@@ -116,7 +123,21 @@ class DownloadsViewModel : ViewModel(), KoinComponent {
     fun removeDownload(download: DownloadEntity, deleteFiles: Boolean) {
         viewModelScope.launch {
             downloadManager.delete(download.id, deleteFiles)
+            pruneArtwork()
         }
+    }
+
+    /**
+     * Removes the series and season posters of groups that no longer have a downloaded item.
+     */
+    private suspend fun pruneArtwork() = withContext(Dispatchers.IO) {
+        val downloads = downloadDao.getAllDownloadsOnce().map { it.item }
+
+        DownloadArtwork.prune(
+            context,
+            seriesIds = downloads.mapNotNull { it.seriesId }.toSet(),
+            seasonIds = downloads.mapNotNull { it.seasonId }.toSet(),
+        )
     }
 
     fun changeStorageLocation(uri: android.net.Uri) {

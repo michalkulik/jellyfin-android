@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,17 +64,29 @@ fun DownloadsScreen(
     val storageLocation by viewModel.storageLocation.collectAsState()
     val storageLocationAccessible by viewModel.storageLocationAccessible.collectAsState()
     val selection = remember { mutableStateSetOf<Long>() }
+    var folder by remember { mutableStateOf<DownloadsFolder?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
 
     val selectionMode = selection.isNotEmpty()
+    val visibleIds = remember(folder, downloads) { folder.downloadIds(downloads) }
 
     val storageLocationPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) viewModel.changeStorageLocation(uri)
     }
 
-    BackHandler(enabled = selectionMode) {
-        selection.clear()
+    // The back gesture leaves a folder first, and only then the screen.
+    BackHandler(enabled = selectionMode || folder != null) {
+        if (selectionMode) {
+            selection.clear()
+        } else {
+            folder = null
+        }
+    }
+
+    // Leave a folder that no longer has any download, for example after removing all its episodes.
+    LaunchedEffect(folder, downloads) {
+        if (folder != null && visibleIds.isEmpty()) folder = null
     }
 
     if (showDeleteConfirm) {
@@ -118,7 +131,7 @@ fun DownloadsScreen(
                         if (isSelectionMode) {
                             Text(text = stringResource(R.string.selected_count, selection.size))
                         } else {
-                            Text(text = stringResource(R.string.downloads))
+                            Text(text = folder?.let { it.name } ?: stringResource(R.string.downloads))
                         }
                     }
                 },
@@ -138,7 +151,7 @@ fun DownloadsScreen(
                             }
                         } else {
                             IconButton(
-                                onClick = { onBackPressed() },
+                                onClick = { if (folder != null) folder = null else onBackPressed() },
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -174,10 +187,10 @@ fun DownloadsScreen(
                                         expanded = showMenu,
                                         onDismissRequest = { showMenu = false },
                                     ) {
-                                        if (selection.size < downloads.size) {
+                                        if (selection.size < visibleIds.size) {
                                             DropdownMenuItem(
                                                 onClick = {
-                                                    selection.addAll(downloads.map { it.download.id })
+                                                    selection.addAll(visibleIds)
                                                     showMenu = false
                                                 },
                                             ) {
@@ -227,13 +240,18 @@ fun DownloadsScreen(
                 } else {
                     DownloadsList(
                         downloads = downloads,
+                        folder = folder,
+                        onOpenFolder = { folder = it },
                         onOpen = { viewModel.openDownload(it) },
                         onDownload = { viewModel.download(it) },
                         onCancel = { viewModel.cancelDownload(it) },
                         selection = selection,
-                        onToggleSelection = { download ->
-                            if (selection.contains(download.id)) selection.remove(download.id)
-                            else selection.add(download.id)
+                        onToggleSelection = { ids ->
+                            if (ids.all { selection.contains(it) }) {
+                                ids.forEach(selection::remove)
+                            } else {
+                                selection.addAll(ids)
+                            }
                         },
                         modifier = Modifier.weight(1f),
                     )
