@@ -207,22 +207,12 @@ class NativeInterface(private val context: Context) : KoinComponent {
     fun getUpdateState(): String = updateManager.state.value.toJsonString()
 
     /**
-     * Opens the update prompt, used by the update entry in the profile menu and the button in the
-     * dashboard of the web based user interface.
+     * Opens the update prompt, used by the update entry in the profile menu of the web based user
+     * interface when the app already knows about a newer version.
      */
     @JavascriptInterface
     fun openUpdateDialog(): Boolean {
         emitEvent(ActivityEvent.RequestUpdateDialog)
-        return true
-    }
-
-    /**
-     * Runs a manual update check, used by the dashboard button. Nothing is shown when the installed
-     * version is current, the prompt only follows when there is something to install.
-     */
-    @JavascriptInterface
-    fun checkForUpdates(): Boolean {
-        emitEvent(ActivityEvent.CheckForUpdates)
         return true
     }
 

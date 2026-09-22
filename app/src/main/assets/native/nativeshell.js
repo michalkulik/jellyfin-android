@@ -91,19 +91,11 @@ window.NativeShell = {
     },
 
     /**
-     * Opens the native update prompt. Used by the update entry in the profile menu and by the
-     * update button in the dashboard.
+     * Opens the native update prompt. Used by the update entry in the profile menu when the app
+     * already knows about a newer version.
      */
     openUpdateDialog() {
         window.NativeInterface.openUpdateDialog();
-    },
-
-    /**
-     * Asks the native side to check for updates. Nothing is shown when the installed version is
-     * current, the prompt only follows when there is something to install.
-     */
-    checkForUpdates() {
-        window.NativeInterface.checkForUpdates();
     },
 
     /**

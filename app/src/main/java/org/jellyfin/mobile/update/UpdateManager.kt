@@ -123,7 +123,7 @@ class UpdateManager(
     }
 
     /**
-     * Manual check started by the user, for example from the dashboard.
+     * Manual check started by the user, for example from the client settings.
      *
      * Neither the throttles nor the snooze apply here, because the user asked for the check. Returns
      * the newer release, or null when the installed version is current.

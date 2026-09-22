@@ -142,14 +142,6 @@ class ActivityEventHandler(
             ActivityEvent.RequestUpdateDialog -> {
                 UpdateDialogFragment.show(supportFragmentManager)
             }
-            ActivityEvent.CheckForUpdates -> {
-                lifecycleScope.launch {
-                    // The user asked for the check, so the snooze does not apply. Nothing happens when
-                    // the installed version is current.
-                    val release = updateManager.checkManually()
-                    if (release != null) UpdateDialogFragment.show(supportFragmentManager)
-                }
-            }
             ActivityEvent.ExitApp -> {
                 if (serviceBinder?.isPlaying == true) {
                     moveTaskToBack(false)

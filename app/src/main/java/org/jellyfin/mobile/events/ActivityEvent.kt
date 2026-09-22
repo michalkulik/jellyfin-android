@@ -19,10 +19,4 @@ sealed class ActivityEvent {
 
     /** Opens the update prompt, requested from the web based user interface. */
     data object RequestUpdateDialog : ActivityEvent()
-
-    /**
-     * Manual update check, requested from the dashboard. The user only sees a prompt when a newer
-     * version exists.
-     */
-    data object CheckForUpdates : ActivityEvent()
 }

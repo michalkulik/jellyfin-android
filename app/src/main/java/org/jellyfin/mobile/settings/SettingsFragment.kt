@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import de.Maxr1998.modernpreferences.Preference
 import de.Maxr1998.modernpreferences.PreferencesAdapter
 import de.Maxr1998.modernpreferences.helpers.categoryHeader
@@ -22,11 +23,15 @@ import de.Maxr1998.modernpreferences.helpers.screen
 import de.Maxr1998.modernpreferences.helpers.singleChoice
 import de.Maxr1998.modernpreferences.preferences.CheckBoxPreference
 import de.Maxr1998.modernpreferences.preferences.choice.SelectionItem
+import kotlinx.coroutines.launch
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.app.StorageManager
 import org.jellyfin.mobile.databinding.FragmentSettingsBinding
 import org.jellyfin.mobile.downloads.DownloadMethod
+import org.jellyfin.mobile.update.UpdateDialogFragment
+import org.jellyfin.mobile.update.UpdateManager
+import org.jellyfin.mobile.update.UpdateState
 import org.jellyfin.mobile.utils.BackPressInterceptor
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.mobile.utils.applyWindowInsetsAsMargins
@@ -39,6 +44,10 @@ class SettingsFragment : Fragment(), BackPressInterceptor {
 
     private val appPreferences: AppPreferences by inject()
     private val storageManager: StorageManager by inject()
+    private val updateManager: UpdateManager by inject()
+
+    /** Set while a manual update check is running, so the row cannot be tapped twice. */
+    private var updateCheckRunning = false
 
     private val storageLocationPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -63,6 +72,7 @@ class SettingsFragment : Fragment(), BackPressInterceptor {
     private lateinit var networkBufferPreference: Preference
     private lateinit var externalPlayerChoicePreference: Preference
     private lateinit var downloadLocationPreference: Preference
+    private lateinit var checkForUpdatesPreference: Preference
 
     init {
         Preference.Config.titleMaxLines = 2
@@ -263,11 +273,53 @@ class SettingsFragment : Fragment(), BackPressInterceptor {
             summaryRes = R.string.pref_downloads_app_private
             enabled = false
         }
+
+        categoryHeader(PREF_CATEGORY_UPDATES) {
+            titleRes = R.string.pref_category_updates
+        }
+        checkForUpdatesPreference = pref(PREF_CHECK_FOR_UPDATES) {
+            titleRes = R.string.update_check_for_updates
+            defaultOnClick {
+                checkForUpdates()
+            }
+        }
+    }
+
+    /**
+     * Runs a manual update check. A newer version opens the same prompt as the automatic check,
+     * while an up to date install only reports the result in the row summary so nothing pops up
+     * when there is nothing to install.
+     */
+    private fun checkForUpdates() {
+        if (updateCheckRunning || !::checkForUpdatesPreference.isInitialized) return
+
+        updateCheckRunning = true
+        checkForUpdatesPreference.summary = getString(R.string.update_checking)
+        checkForUpdatesPreference.requestRebind()
+
+        lifecycleScope.launch {
+            val release = updateManager.checkManually()
+            updateCheckRunning = false
+
+            if (release != null) {
+                checkForUpdatesPreference.summary = null
+                checkForUpdatesPreference.requestRebind()
+                UpdateDialogFragment.show(parentFragmentManager)
+            } else {
+                checkForUpdatesPreference.summary = when (updateManager.state.value) {
+                    is UpdateState.UpToDate -> getString(R.string.update_check_up_to_date)
+                    else -> getString(R.string.update_check_failed)
+                }
+                checkForUpdatesPreference.requestRebind()
+            }
+        }
     }
 
     companion object {
         const val PREF_CATEGORY_MUSIC_PLAYER = "pref_category_music"
         const val PREF_CATEGORY_VIDEO_PLAYER = "pref_category_video"
         const val PREF_CATEGORY_DOWNLOADS = "pref_category_downloads"
+        const val PREF_CATEGORY_UPDATES = "pref_category_updates"
+        const val PREF_CHECK_FOR_UPDATES = "pref_check_for_updates"
     }
 }

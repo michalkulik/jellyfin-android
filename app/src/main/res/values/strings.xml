@@ -143,6 +143,7 @@
     <string name="pref_subtitle_style_summary">You can change the subtitle style in the Android settings</string>
 
     <string name="pref_category_downloads">Downloads</string>
+    <string name="pref_category_updates">Updates</string>
     <string name="pref_downloads_app_private">Downloads are stored inside the app and are only available there.</string>
     <string name="download_quality_dialog_title">Download quality</string>
     <string name="download_quality_dialog_message">Choose the quality to download. Other qualities are converted on the server before downloading.</string>
@@ -230,4 +231,8 @@
     <string name="update_downloading_progress">%1$d%%</string>
     <string name="update_install_permission_message">Allow this app to install unknown apps, then tap Install again.</string>
     <string name="update_debug_no_install">Debug builds cannot install the release package.</string>
+    <string name="update_check_for_updates">Check for updates</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_check_up_to_date">You are using the newest version</string>
+    <string name="update_check_failed">Could not check for updates</string>
 </resources>

@@ -2,6 +2,7 @@
 <resources>
     <string name="pref_download_location">Lokalizacja pobranych</string>
     <string name="pref_category_downloads">Pobrane</string>
+    <string name="pref_category_updates">Aktualizacje</string>
     <string name="external_player_system_default">Domyślny systemu</string>
     <string name="video_player_external">Zewnętrzny odtwarzacz</string>
     <string name="pref_video_player_type_title">Typ odtwarzacza wideo</string>
@@ -227,4 +228,8 @@
     <string name="update_downloading_progress">%1$d%%</string>
     <string name="update_install_permission_message">Zezwól aplikacji na instalowanie nieznanych aplikacji i dotknij Zainstaluj ponownie.</string>
     <string name="update_debug_no_install">Wersja debug nie może zainstalować pakietu wydania.</string>
+    <string name="update_check_for_updates">Sprawdź aktualizacje</string>
+    <string name="update_checking">Sprawdzanie aktualizacji…</string>
+    <string name="update_check_up_to_date">Używasz najnowszej wersji</string>
+    <string name="update_check_failed">Nie udało się sprawdzić aktualizacji</string>
 </resources>
