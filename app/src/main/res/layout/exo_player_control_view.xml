@@ -149,6 +149,18 @@
         app:layout_constraintTop_toTopOf="@id/seek_bar_container"
         tools:text="0:49:04" />
 
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/exo_ends_at"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/exo_player_controls_display_padding"
+        android:alpha="0.7"
+        android:textColor="?android:textColorPrimary"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@id/exo_duration"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="Ends at 21:35" />
+
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/controls_barrier"
         android:layout_width="wrap_content"

@@ -128,6 +128,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     val playerState: LiveData<Int> get() = _playerState
     val decoderType: LiveData<DecoderType> get() = _decoderType
 
+    /**
+     * Wall clock time (epoch milliseconds) at which the current item is expected to finish, or null
+     * when that cannot be determined (a live stream, or no media loaded).
+     */
+    private val _playbackEndsAt = MutableLiveData<Long?>()
+    val playbackEndsAt: LiveData<Long?> get() = _playbackEndsAt
+
     // Player Menus
     private var playerMenuHelper: PlayerMenuHelper? = null
 
@@ -144,6 +151,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     private var playSpeed = 1f
 
     private var progressUpdateJob: Job? = null
+    private var endsAtUpdateJob: Job? = null
     private var chapterMarkingUpdateJob: Job? = null
     private var skipMediaSegmentUpdateJob: Job? = null
     private var fallbackRetryJob: Job? = null
@@ -300,6 +308,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         notificationHelper.dismissNotification()
         mediaSession.isActive = false
         mediaSession.release()
+        stopEndsAtUpdates()
+        _playbackEndsAt.postValue(null)
         playerOrNull?.run {
             removeListener(this@PlayerViewModel)
             release()
@@ -343,6 +353,39 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
 
     private fun stopProgressUpdates() {
         progressUpdateJob?.cancel()
+    }
+
+    private fun startEndsAtUpdates() {
+        endsAtUpdateJob = viewModelScope.launch {
+            while (true) {
+                updatePlaybackEndsAt()
+                delay(Constants.PLAYER_ENDS_AT_UPDATE_DELAY)
+            }
+        }
+    }
+
+    private fun stopEndsAtUpdates() {
+        endsAtUpdateJob?.cancel()
+    }
+
+    /**
+     * Estimates when the current item finishes, based on the remaining time and the device clock.
+     *
+     * The value is reported as null while the duration is unknown, so the player can hide the label
+     * for live streams. Seeking or changing the playback speed shifts the estimate, which is why the
+     * update also runs on those events instead of only on the periodic tick.
+     */
+    private fun updatePlaybackEndsAt() {
+        val player = playerOrNull
+        val duration = player?.duration ?: C.TIME_UNSET
+        if (player == null || duration == C.TIME_UNSET || duration <= 0L) {
+            _playbackEndsAt.postValue(null)
+            return
+        }
+
+        val speed = player.playbackParameters.speed.takeIf { it > 0f } ?: 1f
+        val remaining = (duration - player.currentPosition).coerceAtLeast(0L)
+        _playbackEndsAt.postValue(System.currentTimeMillis() + (remaining / speed).toLong())
     }
 
     private fun startChapterMarkingUpdates() {
@@ -701,6 +744,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         val parameters = player.playbackParameters
         if (parameters.speed != speed) {
             player.playbackParameters = parameters.withSpeed(speed)
+            // A different speed changes how much wall clock time is left.
+            updatePlaybackEndsAt()
             return true
         }
         return false
@@ -759,6 +804,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         // Setup or stop regular progress updates
         if (playbackState == Player.STATE_READY && playWhenReady) {
             startProgressUpdates()
+            startEndsAtUpdates()
             if (!playerMenuHelper?.chapterMarkings?.markings.isNullOrEmpty()) {
                 startChapterMarkingUpdates()
             }
@@ -767,6 +813,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
             }
         } else {
             stopProgressUpdates()
+            stopEndsAtUpdates()
             stopChapterMarkingUpdates()
             stopSkipMediaSegmentUpdates()
         }
@@ -801,6 +848,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         super.onPositionDiscontinuity(oldPosition, newPosition, reason)
         playerOrNull?.setWatchedChapterMarkings()
         playerOrNull?.updateSkipMediaSegmentButton()
+        // A seek or an automatic transition to the next item changes the remaining time.
+        updatePlaybackEndsAt()
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {

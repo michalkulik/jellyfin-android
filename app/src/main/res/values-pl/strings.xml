@@ -102,6 +102,7 @@
     <string name="menu_item_auto">Automatycznie</string>
     <string name="pref_exoplayer_direct_play_ass">Zezwól na bezpośrednie odtwarzanie napisów SSA/ASS</string>
     <string name="player_error_unspecific_exception">Problem z odtwarzaczem</string>
+    <string name="player_ends_at">Koniec o %1$s</string>
     <string name="pref_subtitle_style">Dostosuj styl napisów</string>
     <string name="pref_subtitle_style_summary">Możesz zmienić styl napisów w ustawieniach Androida</string>
     <string name="button_use_different_server">Użyj innego serwera</string>

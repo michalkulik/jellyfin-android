@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.OrientationEventListener
 import android.view.View
@@ -56,6 +57,7 @@ import org.jellyfin.mobile.utils.toast
 import org.jellyfin.sdk.model.api.MediaSegmentDto
 import org.jellyfin.sdk.model.api.MediaStream
 import org.koin.android.ext.android.inject
+import java.util.Date
 import kotlin.math.max
 import androidx.media3.ui.R as Media3R
 
@@ -112,6 +114,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             requireActivity().window.keepScreenOn = isPlaying
             loadingIndicator.isVisible = playerState == Player.STATE_BUFFERING
         }
+        viewModel.playbackEndsAt.observe(this, ::updatePlaybackEndsAt)
         viewModel.decoderType.observe(this) { type ->
             playerMenus?.updatedSelectedDecoder(type)
         }
@@ -164,6 +167,25 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     private fun restorePlaybackPosition(savedInstanceState: Bundle) {
         val position = savedInstanceState.getLong(STATE_PLAYBACK_POSITION, 0L)
         if (position > 0L) viewModel.playerOrNull?.seekTo(position)
+    }
+
+    /**
+     * Shows the wall clock time at which the current item is expected to finish, above the total
+     * duration of the item.
+     *
+     * The label is hidden while the end time is unknown, which is the case for live streams.
+     */
+    private fun updatePlaybackEndsAt(endsAt: Long?) {
+        val binding = _playerControlsBinding ?: return
+
+        val text = endsAt?.let { time ->
+            getString(R.string.player_ends_at, DateFormat.getTimeFormat(requireContext()).format(Date(time)))
+        }
+
+        binding.exoEndsAt.apply {
+            this.text = text
+            isVisible = !text.isNullOrEmpty()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
