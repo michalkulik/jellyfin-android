@@ -2,6 +2,7 @@ package org.jellyfin.mobile.downloads
 
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -19,6 +20,24 @@ import kotlin.coroutines.resumeWithException
 class FileDownloader(
     private val okHttpClient: OkHttpClient,
 ) {
+    private companion object {
+        /**
+         * Size of the read buffer. A bigger buffer keeps the number of read/write syscalls and the
+         * number of progress reports down, which matters on a fast connection.
+         */
+        private const val BUFFER_SIZE = 64 * 1024
+
+        /**
+         * How often the progress is reported while a file is written.
+         *
+         * Reporting is not free: the callback stores the progress in the database, which invalidates
+         * the download table and makes every observer reload it. Doing that for every buffer (10 KB)
+         * kept a fast download at a few hundred kB/s, so it is done on a timer instead. Four updates
+         * per second is smooth enough for a progress bar and still matches the notification throttle.
+         */
+        private const val PROGRESS_REPORT_INTERVAL_MS = 250L
+    }
+
     fun interface ProgressCallback {
         suspend fun onProgress(downloaded: Long, total: Long)
 
@@ -97,15 +116,31 @@ class FileDownloader(
         val inputStream = response.body?.byteStream() ?: error("Response does not contain a body")
         inputStream.use { inputStream ->
             output.use { outputFile ->
-                val buffer = ByteArray(10240)
+                val buffer = ByteArray(BUFFER_SIZE)
                 var totalRead = contentRange.start
-                var bytesRead: Int
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                var lastReportedTotal = totalRead
+                var lastReportAt = SystemClock.elapsedRealtime()
+
+                while (true) {
+                    val bytesRead = inputStream.read(buffer)
+                    if (bytesRead == -1) break
+
                     coroutineContext.ensureActive()
 
                     outputFile.write(buffer, 0, bytesRead)
                     totalRead += bytesRead
 
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastReportAt >= PROGRESS_REPORT_INTERVAL_MS) {
+                        lastReportAt = now
+                        lastReportedTotal = totalRead
+                        progressCallback.onProgress(totalRead, contentRange.total)
+                    }
+                }
+
+                // The small files (images, subtitles) usually finish between two reports, and a file
+                // that happened to end exactly on a report still has to be finalised the same way.
+                if (lastReportedTotal != totalRead) {
                     progressCallback.onProgress(totalRead, contentRange.total)
                 }
             }

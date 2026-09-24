@@ -16,11 +16,8 @@ import org.jellyfin.sdk.model.UUID
 
 @Dao
 interface DownloadDao {
-    @Query("SELECT * FROM download ORDER BY created_at DESC")
-    fun getAllDownloads(): Flow<List<DownloadEntity>>
-
     /**
-     * One shot variant of [getAllDownloads], used to build the playback queue of downloaded items.
+     * One shot lookup of every download, used to build the playback queue of downloaded items.
      */
     @Query("SELECT * FROM download ORDER BY created_at DESC")
     suspend fun getAllDownloadsOnce(): List<DownloadEntity>
@@ -45,6 +42,14 @@ interface DownloadDao {
      */
     @Query("SELECT item_id, status FROM download")
     suspend fun getDownloadStates(): List<DownloadStateRow>
+
+    /**
+     * Flow variant of [getDownloadStates]. Observers that only need the state must not read the full
+     * rows, because every progress write invalidates the table and they would decode the stored item
+     * of every download each time.
+     */
+    @Query("SELECT item_id, status FROM download")
+    fun getDownloadStatesFlow(): Flow<List<DownloadStateRow>>
 
     @Query("SELECT * FROM download WHERE item_id = :itemId")
     fun getDownloadByItemId(itemId: UUID): DownloadEntity?

@@ -51,10 +51,18 @@ class ActivityEventHandler(
 
         // Notify the web based user interface whenever the state of a download changes so it can
         // update the download buttons of the affected items.
+        //
+        // Only the state is read here. The full rows carry the serialized item of every download, so
+        // reading them on every progress write (which invalidates the table) was much more expensive
+        // than the few fields this actually uses.
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
-                downloadDao.getAllDownloads()
-                    .map { downloads -> downloads.map { it.itemId to it.status } }
+                downloadDao.getDownloadStatesFlow()
+                    .map { states ->
+                        states
+                            .map { it.itemId.toString() to it.status }
+                            .sortedBy { it.first }
+                    }
                     .distinctUntilChanged()
                     .collect {
                         webappFunctionChannel.call("window.NativeShell.onDownloadStateChanged();")

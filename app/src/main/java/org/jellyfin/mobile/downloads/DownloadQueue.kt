@@ -115,9 +115,19 @@ class DownloadQueue(
             )
 
             val progressCallback = object : FileDownloader.ProgressCallback {
+                private var lastProgress = Int.MIN_VALUE
+
                 override suspend fun onProgress(downloaded: Long, total: Long) {
                     val progress = if (total > 0) ((downloaded * 100) / total).toInt().coerceIn(0, 100) else -1
-                    downloadDao.updateProgress(downloadId, progress)
+
+                    // Writing to the database invalidates the download table, which makes every
+                    // observer reload it. Repeating a percentage that is already stored would pay
+                    // that cost for nothing, and a large file spends many buffers in one percent.
+                    if (progress != lastProgress) {
+                        lastProgress = progress
+                        downloadDao.updateProgress(downloadId, progress)
+                    }
+
                     notificationProgressCallback.onProgress(downloaded, total)
                 }
             }
