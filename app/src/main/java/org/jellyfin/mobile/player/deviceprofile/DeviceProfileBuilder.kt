@@ -179,6 +179,13 @@ class DeviceProfileBuilder(
         container: String,
         videoCodec: String,
     ): CodecProfile? {
+        // MPEG-4 Part 2 (DivX/Xvid) streams report no profile, which a whitelist of the decoder's
+        // supported profiles would reject. Decoder availability is already checked when the codec
+        // lists are built, so this codec is not restricted by profile.
+        if (videoCodec == "mpeg4") {
+            return null
+        }
+
         val profilesSet = videoCodecsProfiles[videoCodec]
         if (profilesSet?.isNotEmpty() != true) {
             return null
@@ -245,7 +252,7 @@ class DeviceProfileBuilder(
          * IMPORTANT: Don't change without updating [AVAILABLE_VIDEO_CODECS] and [AVAILABLE_AUDIO_CODECS]
          */
         private val SUPPORTED_CONTAINER_FORMATS = arrayOf(
-            "mp4", "fmp4", "webm", "mkv", "mp3", "ogg", "wav", "mpegts", "flv", "aac", "flac", "3gp",
+            "mp4", "fmp4", "webm", "mkv", "mp3", "ogg", "wav", "mpegts", "flv", "aac", "flac", "3gp", "avi",
         )
 
         /**
@@ -277,6 +284,9 @@ class DeviceProfileBuilder(
             emptyArray(),
             // 3gp
             arrayOf("h263", "mpeg4", "h264", "hevc"),
+            // avi
+            // The AVI extractor in Media3 only recognizes MPEG-4 Part 2 (DivX/Xvid) and H.264 video.
+            arrayOf("mpeg4", "h264"),
         )
 
         /**
@@ -322,6 +332,9 @@ class DeviceProfileBuilder(
             arrayOf("flac"),
             // 3gp
             arrayOf("3gpp", "aac", "flac"),
+            // avi
+            // Matches the audio formats the Media3 AVI extractor can parse: PCM, MP3, AAC, AC3 and DTS.
+            arrayOf(*PCM_CODECS, "mp3", "aac", "ac3", "dts"),
         )
 
         /**
